@@ -1,0 +1,7 @@
+# ninja log v5
+0	10537	1709501083058092263	/workspace/wwang/BINGO/projects/MaskPoint/extensions/pointops/build/temp.linux-x86_64-3.7/src/knnquery/knnquery_cuda.o	67ca992b2fafd53d
+1	21651	1709501093975172028	/workspace/wwang/BINGO/projects/MaskPoint/extensions/pointops/build/temp.linux-x86_64-3.7/src/pointops_api.o	d6f7076221b6b4df
+28	10680	1709501137803502191	/workspace/wwang/BINGO/projects/MaskPoint/extensions/pointops/build/temp.linux-x86_64-3.7/src/knnquery/knnquery_cuda.o	67ca992b2fafd53d
+28	11246	1709501138371558266	/workspace/wwang/BINGO/projects/MaskPoint/extensions/pointops/build/temp.linux-x86_64-3.7/src/sampling/sampling_cuda.o	c438a6c75f24e3c
+28	126142	1709501253258876530	/workspace/wwang/BINGO/projects/MaskPoint/extensions/pointops/build/temp.linux-x86_64-3.7/src/knnquery/knnquery_cuda_kernel.o	a12dc3525aad8fb6
+29	126708	1709501253822931995	/workspace/wwang/BINGO/projects/MaskPoint/extensions/pointops/build/temp.linux-x86_64-3.7/src/sampling/sampling_cuda_kernel.o	8736bb1a0d9b7d18
