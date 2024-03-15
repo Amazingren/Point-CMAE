@@ -1,8 +1,9 @@
 # MaskPoint
+### Baseline Methods: [ECCV 2022] Masked Discrimination for Self-Supervised Learning on Point Clouds 
 
-## [ECCV 2022] Masked Discrimination for Self-Supervised Learning on Point Clouds
+This is a baseline code repo. for 3D representation learning.
 
-[Haotian Liu](https://hliu.cc), [Mu Cai](https://sites.google.com/view/mucai), [Yong Jae Lee](https://pages.cs.wisc.edu/~yongjaelee/)
+[Bin Ren](https://amazingren.github.io/), [Guofeng Mei](https://gfmei.github.io/),
 
 Please check out our paper [here](https://arxiv.org/abs/2203.11183).
 
