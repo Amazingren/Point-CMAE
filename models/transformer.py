@@ -220,3 +220,35 @@ class TransformerDecoder(nn.Module):
             x = block(x, pos, mem, mem_pos)
         return x
 
+
+class TransformerDecoderMAE(nn.Module):
+    def __init__(self, embed_dim=384, depth=4, num_heads=6, mlp_ratio=4., qkv_bias=False, qk_scale=None,
+                 drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1, norm_layer=nn.LayerNorm):
+        super().__init__()
+        self.blocks = nn.ModuleList([
+            Block(
+                dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
+                drop=drop_rate, attn_drop=attn_drop_rate,
+                drop_path=drop_path_rate[i] if isinstance(drop_path_rate, list) else drop_path_rate
+            )
+            for i in range(depth)])
+        self.norm = norm_layer(embed_dim)
+        self.head = nn.Identity()
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.xavier_uniform_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+
+    def forward(self, x, pos, return_token_num):
+        for _, block in enumerate(self.blocks):
+            x = block(x + pos)
+
+        x_rec = self.head(self.norm(x[:, -return_token_num:]))  # only return the mask tokens predict pixel
+        return x_rec, x

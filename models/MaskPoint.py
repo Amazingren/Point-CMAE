@@ -8,8 +8,9 @@ from utils.checkpoint import get_missing_parameters_message, get_unexpected_para
 from utils.logger import *
 import random
 from extensions.pointops.functions import pointops
-from .transformer import TransformerEncoder, TransformerDecoder, Group, DummyGroup, Encoder
+from .transformer import TransformerEncoder, TransformerDecoder, Group, DummyGroup, Encoder, TransformerDecoderMAE
 from .detr.build import build_encoder as build_encoder_3detr, build_preencoder as build_preencoder_3detr
+from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
 
 from .cluster import wkeans, gmm_params, cos_similarity, ot_assign
 
@@ -163,6 +164,8 @@ class MaskPointTransformer(nn.Module):
         self.num_heads = config.transformer_config.num_heads
         self.ambiguous_threshold = config.transformer_config.ambiguous_threshold
         self.ambiguous_dynamic_threshold = config.transformer_config.ambiguous_dynamic_threshold
+        self.use_pts_mae_loss = config.transformer_config.use_pts_mae_loss
+        self.use_cluster_loss = config.transformer_config.use_cluster_loss
         print_log(f'[Transformer args] {config.transformer_config}', logger = 'MaskPoint')
         # define the encoder
         self.enc_arch = config.transformer_config.get('enc_arch', 'PointViT')
@@ -182,6 +185,11 @@ class MaskPointTransformer(nn.Module):
 
         # pos embedding for each patch
         self.pos_embed = nn.Sequential(
+            nn.Linear(3, 128),
+            nn.GELU(),
+            nn.Linear(128, self.trans_dim)
+        )
+        self.decoder_pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
             nn.Linear(128, self.trans_dim)
@@ -208,6 +216,12 @@ class MaskPointTransformer(nn.Module):
             drop_path_rate = dpr,
             num_heads = self.num_heads
         )
+        self.MAE_decoder = TransformerDecoderMAE(
+            embed_dim=self.trans_dim,
+            depth=self.dec_depth + 3,
+            drop_path_rate=dpr,
+            num_heads=self.num_heads,
+        )
         self.cls_head = nn.Sequential(
             nn.Linear(self.trans_dim, self.cls_dim),
             nn.GELU(),
@@ -233,6 +247,18 @@ class MaskPointTransformer(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(256, 8)
         )
+
+        # prediction head
+        self.increase_dim = nn.Sequential(
+            # nn.Conv1d(self.trans_dim, 1024, 1),
+            # nn.BatchNorm1d(1024),
+            # nn.LeakyReLU(negative_slope=0.2),
+            nn.Conv1d(self.trans_dim, 3*self.group_size, 1)
+        )
+
+        self.loss = config.loss
+        # loss
+        self.build_loss_func(self.loss)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -288,6 +314,15 @@ class MaskPointTransformer(nn.Module):
         group_input_tokens = self.reduce_dim(group_input_tokens)
         return group_input_tokens
 
+    def build_loss_func(self, loss_type):
+        if loss_type == "cdl1":
+            self.loss_func = ChamferDistanceL1().cuda()
+        elif loss_type =='cdl2':
+            self.loss_func = ChamferDistanceL2().cuda()
+        else:
+            raise NotImplementedError
+            # self.loss_func = emd().cuda()
+
     def forward(self, neighborhood, center, only_cls_tokens = False, noaug = False, points_orig=None):
         if self.enc_arch == '3detr':
             pre_enc_xyz, group_input_tokens, pre_enc_inds = self.preencoder(center)
@@ -313,78 +348,81 @@ class MaskPointTransformer(nn.Module):
         # mask: [128, 64]
         # masked_input_tokens: [128, 7, 384]
         # masked_centers: [128, 7, 3]
-        masked_input_tokens = group_input_tokens[~mask].view(B, n_unmask, -1)
-        masked_centers = center[~mask].view(B, n_unmask, -1)
+        vis_input_tokens = group_input_tokens[~mask].view(B, n_unmask, -1)
+        vis_centers = center[~mask].view(B, n_unmask, -1)
         
         # [128, 1, 384]
         cls_tokens = self.cls_token.expand(B, -1, -1) 
         cls_pos = self.cls_pos.expand(B, -1, -1)      
 
-        pos = self.pos_embed(masked_centers) # [128, 7, 384]
+        pos_vis = self.pos_embed(vis_centers) # [128, 7, 384]
 
         if self.enc_arch == '3detr':
-            x = self.blocks(masked_input_tokens.transpose(0, 1), pos=pos.transpose(0, 1))[1].transpose(0, 1)
+            x = self.blocks(vis_input_tokens.transpose(0, 1), pos=pos.transpose(0, 1))[1].transpose(0, 1)
 
             if only_cls_tokens:
                 return self.cls_head(torch.mean(x, dim=1))
         else:
             # [128, 1+7, 384]
-            x = torch.cat((cls_tokens, masked_input_tokens), dim=1)
-            pos = torch.cat((cls_pos, pos), dim=1)
+            x_vis = torch.cat((cls_tokens, vis_input_tokens), dim=1)
+            pos_vis = torch.cat((cls_pos, pos_vis), dim=1)
 
             # [128, 8, 384]
-            x = self.blocks(x, pos)
-            x = self.norm(x)
+            x_vis = self.blocks(x_vis, pos_vis)
+            x_vis = self.norm(x_vis)
 
             if only_cls_tokens:
-                return self.cls_head(x[:, 0])    # [128, 1, 384]
+                return self.cls_head(x_vis[:, 0])    # [128, 1, 384]
 
-            # --- Cluster Loss ---
-            with torch.no_grad():
-                # [128, 65, 384]
-                pos_all = self.pos_embed(center)
-                pos_all = torch.cat((cls_pos, pos_all), dim=1)
-                x_all = torch.cat((cls_tokens, group_input_tokens), dim=1)
-                x_all = self.blocks(x_all, pos_all)
-                x_all = self.norm(x_all)
-
-                # x_all Prob. [128, 65, cluster_dim(64)]
-                gamma_log = self.linear_distri(x_all)  
-                gamma = F.softmax(gamma_log[:, 1:], dim=-1)
-
-                # [128, 64, cluster_dim(64)], [128, 64, 3] -> [128, cluster_dim(8), 3]
-                _, mu = gmm_params(gamma, center)
-
-                # [128, 64, 3], [128, 8, 3] -> [128, 64, 8]
-                gamma_new, dist = ot_assign(center, mu)
-
-            # [128, 8, 8]
-            x_vis_prob = self.linear_distri(x)
-
-            # [128, 64, cluster_dim(8)]
-            gamma_log_new = gamma_log[:, 1:].detach()
-            gamma_log_new[:, 0:7] = x_vis_prob[:, 1:]
-
-            loss_cluster = -torch.mean(torch.sum(gamma_new.detach() * F.log_softmax(gamma_log_new, dim=1), dim=1))
-
-        # -- Prepare: {Q_real & Q_fake} & The Corresponding Labels
-        #             [128, 512, 3]     & [128, 512]
+        # Prepare: {Q_real & Q_fake} & The Corresponding Labels
+        # [128, 512, 3] & [128, 512]
         query_points, query_labels = self._generate_query_xyz(points_orig, center, mode=self.dec_query_mode)
 
         # [128, 512, 384]
         query_pos = self.pos_embed(query_points)
         query_tensor = torch.zeros_like(query_pos)
 
-        # -- Cross Attention Between:
-        # query_tensor: {Q_real & Q_fake} & x: Latent Representation 
-        # [128, 512, 384]
-        dec_outputs = self.decoder(query_tensor, query_pos, x, pos) 
-
-        # -- Two-Layer MLP: [128, 2, 512]
+        # Cross Attn [128, 512, 384]. Between:
+        # query_tensor{Q_real & Q_fake} & x_vis:  
+        dec_outputs = self.decoder(query_tensor, query_pos, x_vis, pos_vis) 
+        # Two-Layer MLP: [128, 2, 512]
         query_preds = self.bin_cls_head(dec_outputs).transpose(1, 2)
 
+        # --- Full Decoder
+        _, _, C = x_vis.shape
+        pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
+        _,N,_ = pos_emd_mask.shape
+        mask_token = self.mask_token.expand(B, N, -1)
+        x_full = torch.cat([x_vis, mask_token], dim=1)
+        pos_full = torch.cat([pos_vis, pos_emd_mask], dim=1)
+        # [128, 57, 384], [128, 65, 384]
+        x_rec, feats_de = self.MAE_decoder(x_full, pos_full, N)
+
+        # --- PointMAE Recons
+        if self.use_pts_mae_loss:
+            B, M, C = x_rec.shape
+            rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
+            gt_points = neighborhood[mask].reshape(B*M,-1,3)
+            loss_mae = self.loss_func(rebuild_points, gt_points)
+        else:
+            loss_mae = torch.tensor(0.).to(dec_outputs.device)
+
+        #  --- Cluster Loss ---
+        if self.use_cluster_loss:
+            # x_full cluster Prob. [128, 65, cluster_dim:8]
+            gamma_log = self.linear_distri(feats_de) 
+            gamma = F.softmax(gamma_log[:, 1:], dim=-1)
+            # [128, 64, cluster_dim:8], [128, 64, 3] -> [128, cluster_dim:8, 3]
+            _, mu = gmm_params(gamma, center)
+            # [128, 64, 3], [128, 8, 3] -> [128, 64, 8]
+            gamma_new, dist = ot_assign(center, mu)
+
+            loss_cluster = -torch.mean(torch.sum(gamma_new.detach() * F.log_softmax(gamma_log[:, 1:], dim=1), dim=1))
+        else: 
+            loss_cluster = torch.tensor(0.).to(dec_outputs.device)
+
         # [128, 512], [128, 2, 512], [128, 512] 
-        return self.cls_head(x[:, 0]), query_preds, query_labels, loss_cluster
+        return self.cls_head(x_vis[:, 0]), query_preds, query_labels, loss_mae, loss_cluster 
 
 
 # For PreTraining
@@ -406,13 +444,15 @@ class MaskPoint(nn.Module):
         self.use_moco_loss = config.transformer_config.use_moco_loss
         self.moco_loss_weight = config.transformer_config.moco_loss_weight
         self.query_loss_weight = config.transformer_config.query_loss_weight
-        self.use_cluster_loss = config.transformer_config.use_cluster_loss
-        self.cluster_loss_weight = config.transformer_config.cluster_loss_weight
         self.use_sigmoid = config.transformer_config.use_sigmoid
         self.use_focal_loss = config.transformer_config.use_focal_loss
         if self.use_focal_loss:
             self.focal_loss_alpha = config.transformer_config.focal_loss_alpha
             self.focal_loss_gamma = config.transformer_config.focal_loss_gamma
+        self.use_cluster_loss = config.transformer_config.use_cluster_loss
+        self.cluster_loss_weight = config.transformer_config.cluster_loss_weight
+        self.use_pts_mae_loss = config.transformer_config.use_pts_mae_loss
+        self.mae_loss_weight = config.transformer_config.mae_loss_weight
 
         self.group_size = config.transformer_config.group_size
         self.num_group = config.transformer_config.num_group
@@ -495,7 +535,7 @@ class MaskPoint(nn.Module):
             neighborhood, center = self.group_divider(pts) # neighborhood: [128, 64, 32, 3], center: [128, 64, 3]
 
             # q_cls_feature: [128, 512], query_preds: [128, 2, 512], query_labels: [128, 512]
-            q_cls_feature, query_preds, query_labels, loss_cluster = self.transformer_q(neighborhood, center, points_orig=pts)
+            q_cls_feature, query_preds, query_labels, loss_mae, loss_cluster = self.transformer_q(neighborhood, center, points_orig=pts)
             q_cls_feature = F.normalize(q_cls_feature, dim=1)
 
             if self.use_moco_loss:
@@ -511,18 +551,26 @@ class MaskPoint(nn.Module):
             else:
                 moco_loss = torch.tensor(0.).to(pts.device)
 
-            if self.use_cluster_loss:
-                loss_cluster = self.cluster_loss_weight * loss_cluster
-            else:
-                loss_cluster = torch.tensor(0.).to(pts.device)
-
             if self.use_moco_loss:
                 self._dequeue_and_enqueue(k_cls_feature)
 
             if self.use_sigmoid:
                 recon_loss = self.loss_bce(query_preds, query_labels)
             else:
-                # recon_loss = self.loss_ce(query_preds, query_labels)
-                recon_loss = torch.tensor(0.).to(pts.device)
+                recon_loss = self.loss_ce(query_preds, query_labels)
+                # recon_loss = torch.tensor(0.).to(pts.device) 
             recon_loss = self.query_loss_weight * recon_loss
-            return recon_loss, moco_loss, loss_cluster
+
+            # --- use PointMAE
+            if self.use_pts_mae_loss:
+                loss_mae = self.mae_loss_weight * loss_mae
+            else: 
+                loss_mae = torch.tensor(0.).to(pts.device)
+
+            # --- use Cluster
+            if self.use_cluster_loss:
+                loss_cluster = self.cluster_loss_weight * loss_cluster
+            else:
+                loss_cluster = torch.tensor(0.).to(pts.device)
+
+            return recon_loss, moco_loss, loss_mae, loss_cluster

@@ -104,7 +104,7 @@ def run_net(args, config, train_writer=None, val_writer=None):
         batch_start_time = time.time()
         batch_time = AverageMeter()
         data_time = AverageMeter()
-        losses = AverageMeter(['Loss1', 'Loss2', 'Loss3'])
+        losses = AverageMeter(['Loss1', 'Loss2', 'Loss3', 'Loss4'])
 
         num_iter = 0
         grad_clip_val = config.grad_norm_clip
@@ -137,9 +137,9 @@ def run_net(args, config, train_writer=None, val_writer=None):
                 else:
                     points = fixed_sample.clone()
 
-            loss_1, loss_2, loss_3 = base_model(points)
+            loss_1, loss_2, loss_3 , loss_4 = base_model(points)
 
-            _loss = loss_1 + loss_2 + loss_3
+            _loss = loss_1 + loss_2 + loss_3 + loss_4
 
             _loss.backward()
 
@@ -162,9 +162,10 @@ def run_net(args, config, train_writer=None, val_writer=None):
                 loss_1 = dist_utils.reduce_tensor(loss_1, args)
                 loss_2 = dist_utils.reduce_tensor(loss_2, args)
                 loss_3 = dist_utils.reduce_tensor(loss_3, args)
-                losses.update([loss_1.item(), loss_2.item(), loss_3.item()])
+                loss_4 = dist_utils.reduce_tensor(loss_4, args)
+                losses.update([loss_1.item(), loss_2.item(), loss_3.item() * 1000, loss_4])
             else:
-                losses.update([loss_1.item(), loss_2.item(), loss_3.item()])
+                losses.update([loss_1.item(), loss_2.item(), loss_3.item() * 1000, loss_4])
 
 
             if args.distributed:
@@ -174,6 +175,7 @@ def run_net(args, config, train_writer=None, val_writer=None):
                 train_writer.add_scalar('Loss/Batch/Loss_1', loss_1.item(), n_itr)
                 train_writer.add_scalar('Loss/Batch/Loss_2', loss_2.item(), n_itr)
                 train_writer.add_scalar('Loss/Batch/Loss_3', loss_3.item(), n_itr)
+                train_writer.add_scalar('Loss/Batch/Loss_4', loss_4.item(), n_itr)
                 train_writer.add_scalar('Loss/Batch/LR', optimizer.param_groups[0]['lr'], n_itr)
 
 
@@ -195,6 +197,7 @@ def run_net(args, config, train_writer=None, val_writer=None):
             train_writer.add_scalar('Loss/Epoch/Loss_1', losses.avg(0), epoch)
             train_writer.add_scalar('Loss/Epoch/Loss_2', losses.avg(1), epoch)
             train_writer.add_scalar('Loss/Epoch/Loss_3', losses.avg(2), epoch)
+            train_writer.add_scalar('Loss/Epoch/Loss_4', losses.avg(3), epoch)
 
         print_log('[Training] EPOCH: %d EpochTime = %.3f (s) Losses = %s' %
             (epoch,  epoch_end_time - epoch_start_time, ['%.4f' % l for l in losses.avg()]), logger = logger)
