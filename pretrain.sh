@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0 python main.py \
+CUDA_VISIBLE_DEVICES=7 python main.py \
     --config cfgs/pretrain_shapenet.yaml \
-    --exp_name debug \
+    --exp_name cluster_dev \
     --val_freq 10

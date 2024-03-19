@@ -242,8 +242,14 @@ class MaskPointTransformer(nn.Module):
         self.apply(self._init_weights)
         self.access_count = 0
 
+        # self.linear_distri = nn.Sequential(
+        #     nn.Linear(384, 256),
+        #     nn.ReLU(inplace=True),
+        #     nn.Linear(256, 8)
+        # )
         self.linear_distri = nn.Sequential(
-            nn.Linear(384, 256),
+            nn.Linear(384*2, 256),
+            nn.LayerNorm(256),
             nn.ReLU(inplace=True),
             nn.Linear(256, 8)
         )
@@ -409,15 +415,19 @@ class MaskPointTransformer(nn.Module):
 
         #  --- Cluster Loss ---
         if self.use_cluster_loss:
-            # x_full cluster Prob. [128, 65, cluster_dim:8]
-            gamma_log = self.linear_distri(feats_de) 
-            gamma = F.softmax(gamma_log[:, 1:], dim=-1)
+            cls_token = feats_de[:, 0].unsqueeze(1).expand(-1, 64, -1) # [128, 64, 384]
+            new_feats = torch.cat([feats_de[:, 1:], cls_token], dim=-1) # [128, 64, 384*2]
+
+            # x_full cluster Prob. [128, 64, cluster_dim:8]
+            gamma_log = self.linear_distri(new_feats) 
+
+            gamma = F.softmax(gamma_log, dim=-1)
             # [128, 64, cluster_dim:8], [128, 64, 3] -> [128, cluster_dim:8, 3]
             _, mu = gmm_params(gamma, center)
             # [128, 64, 3], [128, 8, 3] -> [128, 64, 8]
             gamma_new, dist = ot_assign(center, mu)
 
-            loss_cluster = -torch.mean(torch.sum(gamma_new.detach() * F.log_softmax(gamma_log[:, 1:], dim=1), dim=1))
+            loss_cluster = -torch.mean(torch.sum(gamma_new.detach() * F.log_softmax(gamma_log, dim=1), dim=1))
         else: 
             loss_cluster = torch.tensor(0.).to(dec_outputs.device)
 
@@ -557,8 +567,8 @@ class MaskPoint(nn.Module):
             if self.use_sigmoid:
                 recon_loss = self.loss_bce(query_preds, query_labels)
             else:
-                recon_loss = self.loss_ce(query_preds, query_labels)
-                # recon_loss = torch.tensor(0.).to(pts.device) 
+                # recon_loss = self.loss_ce(query_preds, query_labels)
+                recon_loss = torch.tensor(0.).to(pts.device) 
             recon_loss = self.query_loss_weight * recon_loss
 
             # --- use PointMAE
