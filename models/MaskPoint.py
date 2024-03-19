@@ -1,18 +1,19 @@
+import random
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_
 
-from .build import MODELS
+from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
+from extensions.pointops.functions import pointops
 from utils.checkpoint import get_missing_parameters_message, get_unexpected_parameters_message
 from utils.logger import *
-import random
-from extensions.pointops.functions import pointops
-from .transformer import TransformerEncoder, TransformerDecoder, Group, DummyGroup, Encoder, TransformerDecoderMAE
+from .build import MODELS
+from .cluster import gmm_params, ot_assign, GeoDecoder
 from .detr.build import build_encoder as build_encoder_3detr, build_preencoder as build_preencoder_3detr
-from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
+from .transformer import TransformerEncoder, TransformerDecoder, Group, DummyGroup, Encoder, TransformerDecoderMAE
 
-from .cluster import wkeans, gmm_params, cos_similarity, ot_assign
 
 # For Finetuing
 @MODELS.register_module()
@@ -22,18 +23,18 @@ class PointTransformer(nn.Module):
         self.config = config
 
         self.trans_dim = config.trans_dim
-        self.depth = config.depth 
-        self.drop_path_rate = config.drop_path_rate 
-        self.cls_dim = config.cls_dim 
-        self.num_heads = config.num_heads 
+        self.depth = config.depth
+        self.drop_path_rate = config.drop_path_rate
+        self.cls_dim = config.cls_dim
+        self.num_heads = config.num_heads
 
         self.group_size = config.group_size
         self.num_group = config.num_group
         # grouper
-        self.group_divider = Group(num_group = self.num_group, group_size = self.group_size)
+        self.group_divider = Group(num_group=self.num_group, group_size=self.group_size)
         # define the encoder
-        self.encoder_dims =  config.encoder_dims
-        self.encoder = Encoder(encoder_channel = self.encoder_dims)
+        self.encoder_dims = config.encoder_dims
+        self.encoder = Encoder(encoder_channel=self.encoder_dims)
         # bridge encoder and transformer
         self.reduce_dim = nn.Identity()
         if self.encoder_dims != self.trans_dim:
@@ -50,10 +51,10 @@ class PointTransformer(nn.Module):
 
         dpr = [x.item() for x in torch.linspace(0, self.drop_path_rate, self.depth)]
         self.blocks = TransformerEncoder(
-            embed_dim = self.trans_dim,
-            depth = self.depth,
-            drop_path_rate = dpr,
-            num_heads = self.num_heads
+            embed_dim=self.trans_dim,
+            depth=self.depth,
+            drop_path_rate=dpr,
+            num_heads=self.num_heads
         )
 
         self.norm = nn.LayerNorm(self.trans_dim)
@@ -80,10 +81,10 @@ class PointTransformer(nn.Module):
             )
 
         self.build_loss_func()
-        
+
     def build_loss_func(self):
         self.loss_ce = nn.CrossEntropyLoss()
-    
+
     def get_loss_acc(self, ret, gt):
         loss = self.loss_ce(ret, gt.long())
         pred = ret.argmax(-1)
@@ -100,34 +101,32 @@ class PointTransformer(nn.Module):
                 base_ckpt[k[len('base_model.'):]] = base_ckpt[k]
             del base_ckpt[k]
 
-
         incompatible = self.load_state_dict(base_ckpt, strict=False)
 
         if incompatible.missing_keys:
-            print_log('missing_keys', logger = 'Transformer')
+            print_log('missing_keys', logger='Transformer')
             print_log(
                 get_missing_parameters_message(incompatible.missing_keys),
-                logger = 'Transformer'
+                logger='Transformer'
             )
         if incompatible.unexpected_keys:
-            print_log('unexpected_keys', logger = 'Transformer')
+            print_log('unexpected_keys', logger='Transformer')
             print_log(
                 get_unexpected_parameters_message(incompatible.unexpected_keys),
-                logger = 'Transformer'
+                logger='Transformer'
             )
 
-        print_log(f'[Transformer] Successful Loading the ckpt from {bert_ckpt_path}', logger = 'Transformer')
-
+        print_log(f'[Transformer] Successful Loading the ckpt from {bert_ckpt_path}', logger='Transformer')
 
     def forward(self, pts, return_feature=False):
         # divide the point clo  ud in the same form. This is important
         neighborhood, center = self.group_divider(pts)
         # encoder the input cloud blocks
-        group_input_tokens = self.encoder(neighborhood)  #  B G N
+        group_input_tokens = self.encoder(neighborhood)  # B G N
         group_input_tokens = self.reduce_dim(group_input_tokens)
         # prepare cls
-        cls_tokens = self.cls_token.expand(group_input_tokens.size(0), -1, -1)  
-        cls_pos = self.cls_pos.expand(group_input_tokens.size(0), -1, -1)  
+        cls_tokens = self.cls_token.expand(group_input_tokens.size(0), -1, -1)
+        cls_pos = self.cls_pos.expand(group_input_tokens.size(0), -1, -1)
         # add pos embedding
         pos = self.pos_embed(center)
         # final input
@@ -137,7 +136,7 @@ class PointTransformer(nn.Module):
         x = self.blocks(x, pos)
         x = self.norm(x)
         if return_feature: return x
-        concat_f = torch.cat([x[:,0], x[:, 1:].max(1)[0]], dim = -1)
+        concat_f = torch.cat([x[:, 0], x[:, 1:].max(1)[0]], dim=-1)
         ret = self.cls_head_finetune(concat_f)
         return ret
 
@@ -166,13 +165,14 @@ class MaskPointTransformer(nn.Module):
         self.ambiguous_dynamic_threshold = config.transformer_config.ambiguous_dynamic_threshold
         self.use_pts_mae_loss = config.transformer_config.use_pts_mae_loss
         self.use_cluster_loss = config.transformer_config.use_cluster_loss
-        print_log(f'[Transformer args] {config.transformer_config}', logger = 'MaskPoint')
+        print_log(f'[Transformer args] {config.transformer_config}', logger='MaskPoint')
         # define the encoder
         self.enc_arch = config.transformer_config.get('enc_arch', 'PointViT')
         if self.enc_arch == '3detr':
-            self.encoder = build_preencoder_3detr(num_group=self.num_group, group_size=self.group_size, dim=self.encoder_dims)
+            self.encoder = build_preencoder_3detr(num_group=self.num_group, group_size=self.group_size,
+                                                  dim=self.encoder_dims)
         else:
-            self.encoder = Encoder(encoder_channel = self.encoder_dims)
+            self.encoder = Encoder(encoder_channel=self.encoder_dims)
         # bridge encoder and transformer
         self.reduce_dim = nn.Identity()
         if self.encoder_dims != self.trans_dim:
@@ -205,16 +205,16 @@ class MaskPointTransformer(nn.Module):
             )
         else:
             self.blocks = TransformerEncoder(
-                embed_dim = self.trans_dim,
-                depth = self.depth,
-                drop_path_rate = dpr,
-                num_heads = self.num_heads
+                embed_dim=self.trans_dim,
+                depth=self.depth,
+                drop_path_rate=dpr,
+                num_heads=self.num_heads
             )
         self.decoder = TransformerDecoder(
-            embed_dim = self.trans_dim,
-            depth = self.dec_depth,
-            drop_path_rate = dpr,
-            num_heads = self.num_heads
+            embed_dim=self.trans_dim,
+            depth=self.dec_depth,
+            drop_path_rate=dpr,
+            num_heads=self.num_heads
         )
         self.MAE_decoder = TransformerDecoderMAE(
             embed_dim=self.trans_dim,
@@ -247,11 +247,12 @@ class MaskPointTransformer(nn.Module):
         #     nn.ReLU(inplace=True),
         #     nn.Linear(256, 8)
         # )
+        self.upsample = GeoDecoder(num_stages=1, de_neighbors=8)
         self.linear_distri = nn.Sequential(
-            nn.Linear(384*2, 256),
+            nn.Linear(384 * 2, 256),
             nn.LayerNorm(256),
             nn.ReLU(inplace=True),
-            nn.Linear(256, 8)
+            nn.Linear(256, 64)
         )
 
         # prediction head
@@ -259,7 +260,7 @@ class MaskPointTransformer(nn.Module):
             # nn.Conv1d(self.trans_dim, 1024, 1),
             # nn.BatchNorm1d(1024),
             # nn.LeakyReLU(negative_slope=0.2),
-            nn.Conv1d(self.trans_dim, 3*self.group_size, 1)
+            nn.Conv1d(self.trans_dim, 3 * self.group_size, 1)
         )
 
         self.loss = config.loss
@@ -282,7 +283,8 @@ class MaskPointTransformer(nn.Module):
     def _generate_fake_query(self, target):
         B = target.shape[0]
         min_coords, max_coords = torch.min(target, dim=1, keepdim=True)[0], torch.max(target, dim=1, keepdim=True)[0]
-        fake_target = torch.rand(B, self.dec_query_fake_num, 3, dtype=target.dtype, device=target.device) * (max_coords - min_coords) + min_coords
+        fake_target = torch.rand(B, self.dec_query_fake_num, 3, dtype=target.dtype, device=target.device) * (
+                    max_coords - min_coords) + min_coords
         return fake_target
 
     def _generate_query_xyz(self, points, center, mode='center'):
@@ -316,26 +318,26 @@ class MaskPointTransformer(nn.Module):
         return queries, labels
 
     def preencoder(self, neighborhood):
-        group_input_tokens = self.encoder(neighborhood)  #  B G N
+        group_input_tokens = self.encoder(neighborhood)  # B G N
         group_input_tokens = self.reduce_dim(group_input_tokens)
         return group_input_tokens
 
     def build_loss_func(self, loss_type):
         if loss_type == "cdl1":
             self.loss_func = ChamferDistanceL1().cuda()
-        elif loss_type =='cdl2':
+        elif loss_type == 'cdl2':
             self.loss_func = ChamferDistanceL2().cuda()
         else:
             raise NotImplementedError
             # self.loss_func = emd().cuda()
 
-    def forward(self, neighborhood, center, only_cls_tokens = False, noaug = False, points_orig=None):
+    def forward(self, xyz, neighborhood, center, only_cls_tokens=False, noaug=False, points_orig=None):
         if self.enc_arch == '3detr':
             pre_enc_xyz, group_input_tokens, pre_enc_inds = self.preencoder(center)
             group_input_tokens = group_input_tokens.permute(0, 2, 1)
             center = pre_enc_xyz
         else:
-            group_input_tokens = self.preencoder(neighborhood) # [128, 64, 384]
+            group_input_tokens = self.preencoder(neighborhood)  # [128, 64, 384]
         B, G, _ = center.shape
         mask = torch.zeros(B, G, dtype=torch.bool, device=center.device)
         if not noaug:
@@ -346,7 +348,7 @@ class MaskPointTransformer(nn.Module):
             elif self.mask_ratio > 0:
                 n_mask = int(self.mask_ratio * G)
             perm = torch.randperm(G)[:n_mask]
-            mask[:, perm] = True  
+            mask[:, perm] = True
         else:
             n_mask = 0
         n_unmask = G - n_mask
@@ -356,15 +358,15 @@ class MaskPointTransformer(nn.Module):
         # masked_centers: [128, 7, 3]
         vis_input_tokens = group_input_tokens[~mask].view(B, n_unmask, -1)
         vis_centers = center[~mask].view(B, n_unmask, -1)
-        
-        # [128, 1, 384]
-        cls_tokens = self.cls_token.expand(B, -1, -1) 
-        cls_pos = self.cls_pos.expand(B, -1, -1)      
 
-        pos_vis = self.pos_embed(vis_centers) # [128, 7, 384]
+        # [128, 1, 384]
+        cls_tokens = self.cls_token.expand(B, -1, -1)
+        cls_pos = self.cls_pos.expand(B, -1, -1)
+
+        pos_vis = self.pos_embed(vis_centers)  # [128, 7, 384]
 
         if self.enc_arch == '3detr':
-            x = self.blocks(vis_input_tokens.transpose(0, 1), pos=pos.transpose(0, 1))[1].transpose(0, 1)
+            x = self.blocks(vis_input_tokens.transpose(0, 1), pos=cls_pos.transpose(0, 1))[1].transpose(0, 1)
 
             if only_cls_tokens:
                 return self.cls_head(torch.mean(x, dim=1))
@@ -378,7 +380,7 @@ class MaskPointTransformer(nn.Module):
             x_vis = self.norm(x_vis)
 
             if only_cls_tokens:
-                return self.cls_head(x_vis[:, 0])    # [128, 1, 384]
+                return self.cls_head(x_vis[:, 0])  # [128, 1, 384]
 
         # Prepare: {Q_real & Q_fake} & The Corresponding Labels
         # [128, 512, 3] & [128, 512]
@@ -390,14 +392,14 @@ class MaskPointTransformer(nn.Module):
 
         # Cross Attn [128, 512, 384]. Between:
         # query_tensor{Q_real & Q_fake} & x_vis:  
-        dec_outputs = self.decoder(query_tensor, query_pos, x_vis, pos_vis) 
+        dec_outputs = self.decoder(query_tensor, query_pos, x_vis, pos_vis)
         # Two-Layer MLP: [128, 2, 512]
         query_preds = self.bin_cls_head(dec_outputs).transpose(1, 2)
 
         # --- Full Decoder
         _, _, C = x_vis.shape
         pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
-        _,N,_ = pos_emd_mask.shape
+        _, N, _ = pos_emd_mask.shape
         mask_token = self.mask_token.expand(B, N, -1)
         x_full = torch.cat([x_vis, mask_token], dim=1)
         pos_full = torch.cat([pos_vis, pos_emd_mask], dim=1)
@@ -408,18 +410,19 @@ class MaskPointTransformer(nn.Module):
         if self.use_pts_mae_loss:
             B, M, C = x_rec.shape
             rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
-            gt_points = neighborhood[mask].reshape(B*M,-1,3)
+            gt_points = neighborhood[mask].reshape(B * M, -1, 3)
             loss_mae = self.loss_func(rebuild_points, gt_points)
         else:
             loss_mae = torch.tensor(0.).to(dec_outputs.device)
 
         #  --- Cluster Loss ---
         if self.use_cluster_loss:
-            cls_token = feats_de[:, 0].unsqueeze(1).expand(-1, 64, -1) # [128, 64, 384]
-            new_feats = torch.cat([feats_de[:, 1:], cls_token], dim=-1) # [128, 64, 384*2]
+            cls_token = feats_de[:, 0].unsqueeze(1).expand(-1, xyz.shape[1], -1)  # [128, 64, 384]
+            new_feats = self.upsample([xyz, center], [cls_token, feats_de])  # [128, 64, 384*2]
+            # new_feats = torch.cat([feats_de[:, 1:], cls_token], dim=-1)  # [128, 64, 384*2]
 
             # x_full cluster Prob. [128, 64, cluster_dim:8]
-            gamma_log = self.linear_distri(new_feats) 
+            gamma_log = self.linear_distri(new_feats)
 
             gamma = F.softmax(gamma_log, dim=-1)
             # [128, 64, cluster_dim:8], [128, 64, 3] -> [128, cluster_dim:8, 3]
@@ -428,24 +431,25 @@ class MaskPointTransformer(nn.Module):
             gamma_new, dist = ot_assign(center, mu)
 
             loss_cluster = -torch.mean(torch.sum(gamma_new.detach() * F.log_softmax(gamma_log, dim=1), dim=1))
-        else: 
+        else:
             loss_cluster = torch.tensor(0.).to(dec_outputs.device)
 
         # [128, 512], [128, 2, 512], [128, 512] 
-        return self.cls_head(x_vis[:, 0]), query_preds, query_labels, loss_mae, loss_cluster 
+        return self.cls_head(x_vis[:, 0]), query_preds, query_labels, loss_mae, loss_cluster
+
+    # For PreTraining
 
 
-# For PreTraining
 @MODELS.register_module()
 class MaskPoint(nn.Module):
     def __init__(self, config):
         super().__init__()
-        print_log(f'[MaskPoint] build MaskPoint...', logger ='MaskPoint')
+        print_log(f'[MaskPoint] build MaskPoint...', logger='MaskPoint')
         self.config = config
         self.m = config.m
         self.T = config.T
         self.K = config.K
-        
+
         self.transformer_q = MaskPointTransformer(config)
         self.transformer_k = MaskPointTransformer(config)
         for param_q, param_k in zip(self.transformer_q.parameters(), self.transformer_k.parameters()):
@@ -467,9 +471,11 @@ class MaskPoint(nn.Module):
         self.group_size = config.transformer_config.group_size
         self.num_group = config.transformer_config.num_group
 
-        print_log(f'[MaskPoint Group] divide point cloud into G{self.num_group} x S{self.group_size} points ...', logger ='MaskPoint')
+        print_log(f'[MaskPoint Group] divide point cloud into G{self.num_group} x S{self.group_size} points ...',
+                  logger='MaskPoint')
         self.enc_arch = config.transformer_config.get('enc_arch', 'PointViT')
-        self.group_divider = (DummyGroup if self.enc_arch == '3detr' else Group)(num_group = self.num_group, group_size = self.group_size)
+        self.group_divider = (DummyGroup if self.enc_arch == '3detr' else Group)(num_group=self.num_group,
+                                                                                 group_size=self.group_size)
 
         # create the queue
         self.register_buffer("queue", torch.randn(self.transformer_q.cls_dim, self.K))
@@ -511,14 +517,15 @@ class MaskPoint(nn.Module):
     def forward_eval(self, pts):
         with torch.no_grad():
             neighborhood, center = self.group_divider(pts)
-            cls_feature = self.transformer_q(neighborhood, center, only_cls_tokens = True, noaug = True, points_orig = pts)
+            cls_feature = self.transformer_q(neighborhood, center, only_cls_tokens=True, noaug=True, points_orig=pts)
             return cls_feature
 
     def loss_focal_bce(self, pred, target):
         pred_sigmoid = pred.sigmoid()
         target = target.type_as(pred)
         pt = (1 - pred_sigmoid) * target + pred_sigmoid * (1 - target)
-        focal_weight = (self.focal_loss_alpha * target + (1 - self.focal_loss_alpha) * (1 - target)) * pt.pow(self.focal_loss_gamma)
+        focal_weight = (self.focal_loss_alpha * target + (1 - self.focal_loss_alpha) * (1 - target)) * pt.pow(
+            self.focal_loss_gamma)
         loss = F.binary_cross_entropy_with_logits(pred, target, reduction='none') * focal_weight
         return loss
 
@@ -536,21 +543,22 @@ class MaskPoint(nn.Module):
             loss = loss[labels != -1].mean()
         return loss
 
-    def forward(self, pts, noaug = False, **kwargs):  # PTS: [128(bs), 1024, 3]
+    def forward(self, pts, noaug=False, **kwargs):  # PTS: [128(bs), 1024, 3]
         if noaug:
             return self.forward_eval(pts)
         else:
             self._momentum_update_key_encoder()
 
-            neighborhood, center = self.group_divider(pts) # neighborhood: [128, 64, 32, 3], center: [128, 64, 3]
+            neighborhood, center = self.group_divider(pts)  # neighborhood: [128, 64, 32, 3], center: [128, 64, 3]
 
             # q_cls_feature: [128, 512], query_preds: [128, 2, 512], query_labels: [128, 512]
-            q_cls_feature, query_preds, query_labels, loss_mae, loss_cluster = self.transformer_q(neighborhood, center, points_orig=pts)
+            q_cls_feature, query_preds, query_labels, loss_mae, loss_cluster = self.transformer_q(neighborhood, center,
+                                                                                                  points_orig=pts)
             q_cls_feature = F.normalize(q_cls_feature, dim=1)
 
             if self.use_moco_loss:
                 with torch.no_grad():
-                    k_cls_feature = self.transformer_k(neighborhood, center, points_orig=pts, only_cls_tokens = True)
+                    k_cls_feature = self.transformer_k(neighborhood, center, points_orig=pts, only_cls_tokens=True)
                     k_cls_feature = F.normalize(k_cls_feature, dim=1)
                 l_pos = torch.einsum('nc, nc->n', [q_cls_feature, k_cls_feature]).unsqueeze(-1)
                 l_neg = torch.einsum('nc, ck->nk', [q_cls_feature, self.queue.clone().detach()])
@@ -568,13 +576,13 @@ class MaskPoint(nn.Module):
                 recon_loss = self.loss_bce(query_preds, query_labels)
             else:
                 # recon_loss = self.loss_ce(query_preds, query_labels)
-                recon_loss = torch.tensor(0.).to(pts.device) 
+                recon_loss = torch.tensor(0.).to(pts.device)
             recon_loss = self.query_loss_weight * recon_loss
 
             # --- use PointMAE
             if self.use_pts_mae_loss:
                 loss_mae = self.mae_loss_weight * loss_mae
-            else: 
+            else:
                 loss_mae = torch.tensor(0.).to(pts.device)
 
             # --- use Cluster
