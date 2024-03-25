@@ -331,7 +331,7 @@ class MaskPointTransformer(nn.Module):
             raise NotImplementedError
             # self.loss_func = emd().cuda()
 
-    def forward(self, xyz, neighborhood, center, only_cls_tokens=False, noaug=False, points_orig=None):
+    def forward(self, neighborhood, center, only_cls_tokens=False, noaug=False, points_orig=None):
         if self.enc_arch == '3detr':
             pre_enc_xyz, group_input_tokens, pre_enc_inds = self.preencoder(center)
             group_input_tokens = group_input_tokens.permute(0, 2, 1)
@@ -417,8 +417,8 @@ class MaskPointTransformer(nn.Module):
 
         #  --- Cluster Loss ---
         if self.use_cluster_loss:
-            cls_token = feats_de[:, 0].unsqueeze(1).expand(-1, xyz.shape[1], -1)  # [128, 64, 384]
-            new_feats = self.upsample([xyz, center], [cls_token, feats_de])  # [128, 64, 384*2]
+            cls_token = feats_de[:, 0].unsqueeze(1).expand(-1, points_orig.shape[1], -1)  # [128, 64, 384]
+            new_feats = self.upsample([points_orig, center], [cls_token, feats_de])  # [128, 64, 384*2] cls_token = None
             # new_feats = torch.cat([feats_de[:, 1:], cls_token], dim=-1)  # [128, 64, 384*2]
 
             # x_full cluster Prob. [128, 64, cluster_dim:8]
@@ -426,9 +426,9 @@ class MaskPointTransformer(nn.Module):
 
             gamma = F.softmax(gamma_log, dim=-1)
             # [128, 64, cluster_dim:8], [128, 64, 3] -> [128, cluster_dim:8, 3]
-            _, mu = gmm_params(gamma, center)
+            _, mu = gmm_params(gamma, points_orig)
             # [128, 64, 3], [128, 8, 3] -> [128, 64, 8]
-            gamma_new, dist = ot_assign(center, mu)
+            gamma_new, dist = ot_assign(points_orig, mu)
 
             loss_cluster = -torch.mean(torch.sum(gamma_new.detach() * F.log_softmax(gamma_log, dim=1), dim=1))
         else:
@@ -436,8 +436,6 @@ class MaskPointTransformer(nn.Module):
 
         # [128, 512], [128, 2, 512], [128, 512] 
         return self.cls_head(x_vis[:, 0]), query_preds, query_labels, loss_mae, loss_cluster
-
-    # For PreTraining
 
 
 @MODELS.register_module()

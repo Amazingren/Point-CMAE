@@ -38,7 +38,7 @@ model : {
     query_loss_weight: 1.0,
     moco_loss_weight: 0.01,
     mae_loss_weight: 0.1,
-    cluster_loss_weight: 0.1,
+    cluster_loss_weight: 1.0,
     use_focal_loss: true,
     focal_loss_alpha: 0.25,
     focal_loss_gamma: 2,

@@ -85,7 +85,6 @@ def ot_assign(x, y, epsilon=1e-3, thresh=1e-3, max_iter=30, dst='eu'):
     return gamma, loss
 
 
-
 def square_distance(src, dst, normalize=False):
     """
     Calculate Euclid distance between each two src_xyz.
