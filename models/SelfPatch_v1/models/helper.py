@@ -1,6 +1,4 @@
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 
 def calculate_curvature_pca_ball(queries, refs, num_neighbors=10, radius=0.1, eps=1e-8):
@@ -8,7 +6,7 @@ def calculate_curvature_pca_ball(queries, refs, num_neighbors=10, radius=0.1, ep
     if radius <= 0:
         dis = torch.cdist(queries, queries)
         radius = torch.topk(dis, k=2, largest=False)[0][:, 1].mean(dim=-1, keepdim=True)
-        
+
     idx = query_ball_point(radius, num_neighbors, refs, queries)  # [B, K, n_sampling]
     mean_node = torch.mean(queries, dim=-2, keepdim=True)
     cat_points = torch.cat([refs, mean_node], dim=1)
@@ -25,8 +23,8 @@ def calculate_curvature_pca_ball(queries, refs, num_neighbors=10, radius=0.1, ep
     cov_matrices = torch.matmul(centered_neighbor_points.transpose(-2, -1), w_centered_neighbor_points)
     # Calculate eigenvalues and curvatures
     eigenvalues = torch.linalg.eigvalsh(cov_matrices + eps)
-    lmd = [eigenvalues[:, :, 2].clip(min=10*eps), eigenvalues[:, :, 1], eigenvalues[:, :, 0]]
-    features = [(lmd[0] - lmd[1]) / lmd[0], (lmd[1] - lmd[2]) / lmd[0],  lmd[2] / lmd[0]]
+    lmd = [eigenvalues[:, :, 2].clip(min=10 * eps), eigenvalues[:, :, 1], eigenvalues[:, :, 0]]
+    features = [(lmd[0] - lmd[1]) / lmd[0], (lmd[1] - lmd[2]) / lmd[0], lmd[2] / lmd[0]]
 
     return torch.stack(features, dim=-1)
 
@@ -93,11 +91,35 @@ def index_gather(points, idx):
     return new_points
 
 
+def knn(x, k):
+    inner = -2 * torch.matmul(x.transpose(2, 1), x)
+    xx = torch.sum(x ** 2, dim=1, keepdim=True)
+    pairwise_distance = -xx - inner - xx.transpose(2, 1)
 
-# B, C, H, W = feat.size()
-# feat = feat.view(B, C, H * W)
-# u, s, v = torch.linalg.svd(feat, full_matrices=False)
+    idx = pairwise_distance.topk(k=k, dim=-1)[1]  # (batch_size, num_points, k)
+    return idx
 
-# # Asssume feats [:, 128]
-# feat = feat - s[:, 118:].unsqueeze(2) * u[:, :, 118:].bmm(v[:, 118:, :])
-# feat = feat.view(B, C, H, W)
+
+def get_graph_feature(x, k=20, idx=None, extra_dim=False):
+    batch_size, num_dims, num_points = x.size()
+    x = x.view(batch_size, -1, num_points)
+    if idx is None:
+        if extra_dim is False:
+            idx = knn(x, k=k)
+        else:
+            idx = knn(x[:, 6:], k=k)  # idx = knn(x[:, :3], k=k)
+    device = x.device
+
+    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
+    idx = idx + idx_base
+    idx = idx.view(-1)
+    _, num_dims, _ = x.size()
+    x = x.transpose(2, 1).contiguous()
+    # (batch_size, num_points, num_dims)  -> (batch_size*num_points, num_dims)
+    # batch_size * num_points * k + range(0, batch_size*num_points)
+    feature = x.view(batch_size * num_points, -1)[idx, :]
+    feature = feature.view(batch_size, num_points, k, num_dims)
+    x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)
+    feature = torch.cat((feature - x, x), dim=3).permute(0, 3, 1, 2).contiguous()
+
+    return feature
