@@ -5,6 +5,19 @@ This is a baseline code repo. for 3D representation learning.
 
 [Bin Ren](https://amazingren.github.io/), [Guofeng Mei](https://gfmei.github.io/),
 
+
+### Preliminary Documents: 
+- [Recording Slides](https://docs.google.com/presentation/d/1LHFJIDp88kTf5owCK34yF94Ds06GaEZYv3IDShSem1I/edit?usp=sharing)
+- [Preliminary Results](https://docs.google.com/spreadsheets/d/1sStvOSvblkMnCuITnskVC1LL006ploF1f_gpW3gP1S8/edit?usp=sharing)
+- TODO
+
+
+
+### Novelty
+- SelfPatch...
+
+
+
 Please check out our paper [here](https://arxiv.org/abs/2203.11183).
 
 <div align="center">
