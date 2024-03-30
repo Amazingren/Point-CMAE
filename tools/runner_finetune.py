@@ -1,8 +1,8 @@
+import time
 import torch
 import torch.nn as nn
 from tools import builder
 from utils import misc, dist_utils
-import time
 from utils.logger import *
 from utils.AverageMeter import AverageMeter
 
@@ -134,6 +134,8 @@ def run_net(args, config, train_writer=None, val_writer=None):
 
             if npoints == 1024:
                 point_all = 1200
+            elif npoints == 2048:
+                point_all = 2400
             elif npoints == 4096:
                 point_all = 4800
             elif npoints == 8192:
@@ -219,7 +221,12 @@ def run_net(args, config, train_writer=None, val_writer=None):
             # Save ckeckpoints
             if better:
                 best_metrics = metrics
-                builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, 'ckpt-best', args, logger = logger)
+                builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, 'ckpt-best', args, 
+                                        logger = logger)
+                print_log(
+                    "--------------------------------------------------------------------------------------------",
+                    logger=logger)
+            
             if metrics.acc > 91.5 or (better and metrics.acc > 90):
                 metrics_vote = validate_vote(base_model, test_dataloader, epoch, val_writer, args, config, logger=logger)
                 if metrics_vote.better_than(best_metrics_vote):
@@ -227,12 +234,12 @@ def run_net(args, config, train_writer=None, val_writer=None):
                     builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics_vote, 'ckpt-best_vote', args, logger = logger)
 
         builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, 'ckpt-last', args, logger = logger)
-        if args.shot == -1:
-            if (config.max_epoch - epoch) < 10:
-                builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, f'ckpt-epoch-{epoch:03d}', args, logger = logger)
-        else:
-            if epoch == config.max_epoch:
-                metrics_vote = validate_vote(base_model, test_dataloader, epoch, val_writer, args, config, logger=logger)
+        # if args.shot == -1:
+        #     if (config.max_epoch - epoch) < 10:
+        #         builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, f'ckpt-epoch-{epoch:03d}', args, logger = logger)
+        # else:
+        #     if epoch == config.max_epoch:
+        #         metrics_vote = validate_vote(base_model, test_dataloader, epoch, val_writer, args, config, logger=logger)
     if train_writer is not None:
         train_writer.close()
     if val_writer is not None:
@@ -295,6 +302,8 @@ def validate_vote(base_model, test_dataloader, epoch, val_writer, args, config, 
             label = data[1].cuda()
             if npoints == 1024:
                 point_all = 1200
+            elif npoints == 2048:
+                point_all = 2400
             elif npoints == 4096:
                 point_all = 4800
             elif npoints == 8192:
@@ -426,6 +435,8 @@ def test_vote(base_model, test_dataloader, epoch, val_writer, args, config, logg
             label = data[1].cuda()
             if npoints == 1024:
                 point_all = 1200
+            elif npoints == 2048:
+                point_all = 2400
             elif npoints == 4096:
                 point_all = 4800
             elif npoints == 8192:

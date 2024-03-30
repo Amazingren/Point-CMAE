@@ -51,7 +51,7 @@ class DummyGroup(Group):
 #         )
 #
 #     def forward(self, point_groups):
-#         '''
+#         '''[[pp[p;]]]
 #             point_groups : B G N 3
 #             -----------------
 #             feature_global : B G C

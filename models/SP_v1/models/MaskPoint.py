@@ -1,5 +1,4 @@
 import random
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -136,8 +135,7 @@ class PointTransformer(nn.Module):
         # transformer
         x = self.blocks(x, pos)
         x = self.norm(x)
-        if return_feature:
-            return x
+        if return_feature: return x
         concat_f = torch.cat([x[:, 0], x[:, 1:].max(1)[0]], dim=-1)
         ret = self.cls_head_finetune(concat_f)
         return ret
@@ -334,7 +332,7 @@ class MaskPointTransformer(nn.Module):
             x = torch.cat((cls_tokens, vis_input_tokens), dim=1)
             pos = torch.cat((cls_pos, pos), dim=1)
 
-            # --- ViT Encoder: [128, num_vis, 384] 
+            # --- ViT Encoder: [128, 1 + num_vis, 384] 
             x_vis = self.blocks(x, pos)
             x_vis = self.norm(x_vis)
 
@@ -473,20 +471,20 @@ class MaskPoint(nn.Module):
             return self.forward_eval(pts)
 
         self._momentum_update_key_encoder()
+
         neighborhood, center = self.group_divider(pts)  # neighborhood: [128, 64, 32, 3], center: [128, 64, 3]
-        # q_cls_feature: [128, cls_dim], [128, 64, 128]
+        
+        # q_cls_feature: [128, cls_dim], [128, 64, cls_dim]
         q_cls_feats, q_patch_feats = self.transformer_q(neighborhood, center, is_eval=False, points_orig=pts)
-        q_cls_feats = F.normalize(q_cls_feats, dim=1)
         q_patch_predict = self.patch_predict(q_patch_feats)
 
+        with torch.no_grad():
+            k_cls_feats, k_patch_feats = self.transformer_k(neighborhood, center, is_eval = False, points_orig=pts, noaug=True)
+
         if self.use_self_patch:
-            with torch.no_grad():
-                k_cls_feats, k_patch_feats = self.transformer_k(
-                    neighborhood, center, is_eval=False, points_orig=pts, noaug=True)
-                k_cls_feats = F.normalize(k_cls_feats, dim=1)
-                k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
             q_patch_predict = F.normalize(q_patch_predict, dim=-1)
-            # SelfPatch
+            k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
+
             cdist = torch.cdist(center, center)
             radius = torch.topk(cdist, k=2, dim=-1, largest=False)[0][:, 1].mean(dim=-1, keepdim=True)
             feats_dis = torch.cdist(k_patch_feats_norm, k_patch_feats_norm)
@@ -507,15 +505,16 @@ class MaskPoint(nn.Module):
             selfpatch_loss = torch.tensor(0.).to(pts.device)
 
         if self.use_moco_loss:
+            q_cls_feats = F.normalize(q_cls_feats, dim=1)
+            k_cls_feats = F.normalize(k_cls_feats, dim=1)
             l_pos = torch.einsum('nc, nc->n', [q_cls_feats, k_cls_feats]).unsqueeze(-1)
             l_neg = torch.einsum('nc, ck->nk', [q_cls_feats, self.queue.clone().detach()])
             ce_logits = torch.cat([l_pos, l_neg], dim=1) / self.T
             labels = torch.zeros(l_pos.shape[0], dtype=torch.long).to(pts.device)
             moco_loss = self.loss_ce(ce_logits, labels)
             moco_loss = self.moco_loss_weight * moco_loss
+            self._dequeue_and_enqueue(k_cls_feats)
         else:
             moco_loss = torch.tensor(0.).to(pts.device)
-
-        self._dequeue_and_enqueue(k_cls_feats)
 
         return selfpatch_loss, moco_loss
