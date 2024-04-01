@@ -1,0 +1,10 @@
+# ninja log v5
+0	23086	1711037207	/workspace/wwang/BINGO/projects/MaskPoint_reproduce/extensions/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/group_points.o	84396a23aa9750ad
+0	23432	1711037207	/workspace/wwang/BINGO/projects/MaskPoint_reproduce/extensions/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/ball_query.o	a383403776708f35
+0	23703	1711037207	/workspace/wwang/BINGO/projects/MaskPoint_reproduce/extensions/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/bindings.o	70ce793072974502
+23432	47058	1711037231	/workspace/wwang/BINGO/projects/MaskPoint_reproduce/extensions/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/interpolate.o	6cc2c068d50c9ce5
+47059	69954	1711037254	/workspace/wwang/BINGO/projects/MaskPoint_reproduce/extensions/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/sampling.o	c3b5c219af0765c1
+0	73242	1711037257	/workspace/wwang/BINGO/projects/MaskPoint_reproduce/extensions/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/ball_query_gpu.o	b5ff10627febe388
+23097	97451	1711037281	/workspace/wwang/BINGO/projects/MaskPoint_reproduce/extensions/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/group_points_gpu.o	8d3792b40ebdef03
+23703	98464	1711037282	/workspace/wwang/BINGO/projects/MaskPoint_reproduce/extensions/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/interpolate_gpu.o	c857570e87543b46
+69954	148223	1711037331	/workspace/wwang/BINGO/projects/MaskPoint_reproduce/extensions/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/sampling_gpu.o	cf6c5b6fb1747fab
