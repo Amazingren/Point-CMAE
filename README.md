@@ -18,6 +18,12 @@ This is a baseline code repo. for 3D representation learning.
 
 
 
+### Some Experiments Tips:
+- Environments: Use the PointMAE's envs for partsegmentation experiments, while for the rest, just the envs of MaskPoint.
+- 
+
+
+
 Please check out our paper [here](https://arxiv.org/abs/2203.11183).
 
 <div align="center">
