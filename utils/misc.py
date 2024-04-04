@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 from collections import abc
-from extensions.pointnet2 import pointnet2_utils
+from pointnet2_ops import pointnet2_utils
 
 
 def fps(data, number):
@@ -183,19 +183,19 @@ def seprate_point_cloud(xyz, num_points, crop, fixed_points = None, padding_zero
 
     return input_data.contiguous(), crop_data.contiguous()
 
-def get_ptcloud_img(ptcloud):
+def get_ptcloud_img(ptcloud,roll,pitch):
     fig = plt.figure(figsize=(8, 8))
 
     x, z, y = ptcloud.transpose(1, 0)
     ax = fig.gca(projection=Axes3D.name, adjustable='box')
     ax.axis('off')
     # ax.axis('scaled')
-    ax.view_init(30, 45)
+    ax.view_init(roll,pitch)
     max, min = np.max(ptcloud), np.min(ptcloud)
     ax.set_xbound(min, max)
     ax.set_ybound(min, max)
     ax.set_zbound(min, max)
-    ax.scatter(x, y, z, zdir='z', c=x, cmap='jet')
+    ax.scatter(x, y, z, zdir='z', c=y, cmap='jet')
 
     fig.canvas.draw()
     img = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')

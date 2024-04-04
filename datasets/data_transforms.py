@@ -1,14 +1,7 @@
 import numpy as np
 import torch
+import random
 
-class PointcloudScale(object):
-    def __init__(self, lo=0.8, hi=1.25):
-        self.lo, self.hi = lo, hi
-
-    def __call__(self, points):
-        scaler = np.random.uniform(self.lo, self.hi)
-        points[:, 0:3] *= scaler
-        return points
 
 class PointcloudRotate(object):
     def __call__(self, pc):
@@ -32,11 +25,6 @@ class PointcloudScaleAndTranslate(object):
 
     def __call__(self, pc):
         bsize = pc.size()[0]
-
-        # scale = torch.rand(bsize, 1, 3, device=pc.device, dtype=pc.dtype) * (self.scale_high - self.scale_low) + self.scale_low
-        # translate = torch.rand(bsize, 1, 3, device=pc.device, dtype=pc.dtype) * (2 * self.translate_range) - self.translate_range
-        # pc[..., 0:3] = pc[..., 0:3] * scale + translate
-
         for i in range(bsize):
             xyz1 = np.random.uniform(low=self.scale_low, high=self.scale_high, size=[3])
             xyz2 = np.random.uniform(low=-self.translate_range, high=self.translate_range, size=[3])
@@ -88,7 +76,7 @@ class PointcloudTranslate(object):
 
 
 class PointcloudRandomInputDropout(object):
-    def __init__(self, max_dropout_ratio=0.875):
+    def __init__(self, max_dropout_ratio=0.5):
         assert max_dropout_ratio >= 0 and max_dropout_ratio < 1
         self.max_dropout_ratio = max_dropout_ratio
 
@@ -103,3 +91,27 @@ class PointcloudRandomInputDropout(object):
                 pc[i, :, :] = cur_pc
 
         return pc
+
+class RandomHorizontalFlip(object):
+
+
+  def __init__(self, upright_axis = 'z', is_temporal=False):
+    """
+    upright_axis: axis index among x,y,z, i.e. 2 for z
+    """
+    self.is_temporal = is_temporal
+    self.D = 4 if is_temporal else 3
+    self.upright_axis = {'x': 0, 'y': 1, 'z': 2}[upright_axis.lower()]
+    # Use the rest of axes for flipping.
+    self.horz_axes = set(range(self.D)) - set([self.upright_axis])
+
+
+  def __call__(self, coords):
+    bsize = coords.size()[0]
+    for i in range(bsize):
+        if random.random() < 0.95:
+            for curr_ax in self.horz_axes:
+                if random.random() < 0.5:
+                    coord_max = torch.max(coords[i, :, curr_ax])
+                    coords[i, :, curr_ax] = coord_max - coords[i, :, curr_ax]
+    return coords

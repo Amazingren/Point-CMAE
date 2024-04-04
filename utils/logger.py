@@ -3,13 +3,6 @@ import torch.distributed as dist
 
 logger_initialized = {}
 
-
-def fix_double_log(logger):
-    for handler in logger.root.handlers:
-        if type(handler) is logging.StreamHandler:
-            handler.setLevel(logging.ERROR)
-
-
 def get_root_logger(log_file=None, log_level=logging.INFO, name='main'):
     """Get root logger and add a keyword filter to it.
     The logger will be initialized if it has not been initialized. By default a

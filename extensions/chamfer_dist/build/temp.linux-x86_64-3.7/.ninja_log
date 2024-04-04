@@ -1,5 +1,0 @@
-# ninja log v5
-0	25920	1708820609	/workspace/wwang/BINGO/projects/Point-MAE/extensions/chamfer_dist/build/temp.linux-x86_64-3.7/chamfer_cuda.o	ad343aad200fee99
-0	281099	1708820864	/workspace/wwang/BINGO/projects/Point-MAE/extensions/chamfer_dist/build/temp.linux-x86_64-3.7/chamfer.o	35b01091a3308b99
-11	25702	1708821795	/workspace/wwang/BINGO/projects/Point-MAE/extensions/chamfer_dist/build/temp.linux-x86_64-3.7/chamfer_cuda.o	3662ce991b08892c
-10	250130	1708822020	/workspace/wwang/BINGO/projects/Point-MAE/extensions/chamfer_dist/build/temp.linux-x86_64-3.7/chamfer.o	852dc02ae53e90c8

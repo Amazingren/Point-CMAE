@@ -20,10 +20,9 @@ warnings.filterwarnings('ignore')
 def pc_normalize(pc):
     centroid = np.mean(pc, axis=0)
     pc = pc - centroid
-    m = np.max(np.sqrt(np.sum(pc**2, axis=1)))
+    m = np.max(np.sqrt(np.sum(pc ** 2, axis=1)))
     pc = pc / m
     return pc
-
 
 
 def farthest_point_sample(point, npoint):
@@ -35,7 +34,7 @@ def farthest_point_sample(point, npoint):
         centroids: sampled pointcloud index, [npoint, D]
     """
     N, D = point.shape
-    xyz = point[:,:3]
+    xyz = point[:, :3]
     centroids = np.zeros((npoint,))
     distance = np.ones((N,)) * 1e10
     farthest = np.random.randint(0, N)
@@ -48,6 +47,7 @@ def farthest_point_sample(point, npoint):
         farthest = np.argmax(distance, -1)
     point = point[centroids.astype(np.int32)]
     return point
+
 
 @DATASETS.register_module()
 class ModelNet(Dataset):
@@ -81,16 +81,18 @@ class ModelNet(Dataset):
         shape_names = ['_'.join(x.split('_')[0:-1]) for x in shape_ids[split]]
         self.datapath = [(shape_names[i], os.path.join(self.root, shape_names[i], shape_ids[split][i]) + '.txt') for i
                          in range(len(shape_ids[split]))]
-        print_log('The size of %s data is %d' % (split, len(self.datapath)), logger = 'ModelNet')
+        print_log('The size of %s data is %d' % (split, len(self.datapath)), logger='ModelNet')
 
         if self.uniform:
-            self.save_path = os.path.join(self.root, 'modelnet%d_%s_%dpts_fps.dat' % (self.num_category, split, self.npoints))
+            self.save_path = os.path.join(self.root,
+                                          'modelnet%d_%s_%dpts_fps.dat' % (self.num_category, split, self.npoints))
         else:
-            self.save_path = os.path.join(self.root, 'modelnet%d_%s_%dpts.dat' % (self.num_category, split, self.npoints))
+            self.save_path = os.path.join(self.root,
+                                          'modelnet%d_%s_%dpts.dat' % (self.num_category, split, self.npoints))
 
         if self.process_data:
             if not os.path.exists(self.save_path):
-                print_log('Processing data %s (only running in the first time)...' % self.save_path, logger = 'ModelNet')
+                print_log('Processing data %s (only running in the first time)...' % self.save_path, logger='ModelNet')
                 self.list_of_points = [None] * len(self.datapath)
                 self.list_of_labels = [None] * len(self.datapath)
 
@@ -111,7 +113,7 @@ class ModelNet(Dataset):
                 with open(self.save_path, 'wb') as f:
                     pickle.dump([self.list_of_points, self.list_of_labels], f)
             else:
-                print_log('Load processed data from %s...' % self.save_path, logger = 'ModelNet')
+                print_log('Load processed data from %s...' % self.save_path, logger='ModelNet')
                 with open(self.save_path, 'rb') as f:
                     self.list_of_points, self.list_of_labels = pickle.load(f)
 
@@ -131,17 +133,16 @@ class ModelNet(Dataset):
                 point_set = farthest_point_sample(point_set, self.npoints)
             else:
                 point_set = point_set[0:self.npoints, :]
-                
+
         point_set[:, 0:3] = pc_normalize(point_set[:, 0:3])
         if not self.use_normals:
             point_set = point_set[:, 0:3]
 
         return point_set, label[0]
 
-
     def __getitem__(self, index):
         points, label = self._get_item(index)
-        pt_idxs = np.arange(0, points.shape[0])   # 2048
+        pt_idxs = np.arange(0, points.shape[0])  # 2048
         if self.subset == 'train':
             np.random.shuffle(pt_idxs)
         current_points = points[pt_idxs].copy()

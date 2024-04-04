@@ -1,8 +1,1 @@
-#!/usr/bin/env bash
-
-set -x
-GPUS=$1
-
-PY_ARGS=${@:2}
-
-CUDA_VISIBLE_DEVICES=${GPUS} python main.py --test --deterministic ${PY_ARGS}
+CUDA_VISIBLE_DEVICES=$1 python main.py --test --config cfgs/full/finetune_modelnet.yaml --exp_name $2 --ckpts $3 --seed $RANDOM 

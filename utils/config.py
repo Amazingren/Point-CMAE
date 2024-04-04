@@ -3,17 +3,20 @@ from easydict import EasyDict
 import os
 from .logger import print_log
 
+
 def log_args_to_file(args, pre='args', logger=None):
     for key, val in args.__dict__.items():
-        print_log(f'{pre}.{key} : {val}', logger = logger)
+        print_log(f'{pre}.{key} : {val}', logger=logger)
+
 
 def log_config_to_file(cfg, pre='cfg', logger=None):
     for key, val in cfg.items():
         if isinstance(cfg[key], EasyDict):
-            print_log(f'{pre}.{key} = edict()', logger = logger)
+            print_log(f'{pre}.{key} = edict()', logger=logger)
             log_config_to_file(cfg[key], pre=pre + '.' + key, logger=logger)
             continue
-        print_log(f'{pre}.{key} : {val}', logger = logger)
+        print_log(f'{pre}.{key} : {val}', logger=logger)
+
 
 def merge_new_config(config, new_config):
     for key, val in new_config.items():
@@ -34,19 +37,6 @@ def merge_new_config(config, new_config):
         merge_new_config(config[key], val)
     return config
 
-def merge_from_options(config, options):
-    option_cfg_dict = EasyDict()
-    for full_key, v in options.items():
-        d = option_cfg_dict
-        key_list = full_key.split('.')
-        for subkey in key_list[:-1]:
-            if subkey not in d:
-                d[subkey] = EasyDict()
-            d = d[subkey]
-        subkey = key_list[-1]
-        d[subkey] = v
-    merge_new_config(config, option_cfg_dict)
-    return config
 
 def cfg_from_yaml_file(cfg_file):
     config = EasyDict()
@@ -55,23 +45,25 @@ def cfg_from_yaml_file(cfg_file):
             new_config = yaml.load(f, Loader=yaml.FullLoader)
         except:
             new_config = yaml.load(f)
-    merge_new_config(config=config, new_config=new_config)        
+    merge_new_config(config=config, new_config=new_config)
     return config
+
 
 def get_config(args, logger=None):
     if args.resume:
         cfg_path = os.path.join(args.experiment_path, 'config.yaml')
         if not os.path.exists(cfg_path):
-            print_log("Failed to resume", logger = logger)
+            print_log("Failed to resume", logger=logger)
             raise FileNotFoundError()
-        print_log(f'Resume yaml from {cfg_path}', logger = logger)
+        print_log(f'Resume yaml from {cfg_path}', logger=logger)
         args.config = cfg_path
     config = cfg_from_yaml_file(args.config)
     if not args.resume and args.local_rank == 0:
         save_experiment_config(args, config, logger)
     return config
 
-def save_experiment_config(args, config, logger = None):
+
+def save_experiment_config(args, config, logger=None):
     config_path = os.path.join(args.experiment_path, 'config.yaml')
     os.system('cp %s %s' % (args.config, config_path))
-    print_log(f'Copy the Config file from {args.config} to {config_path}',logger = logger )
+    print_log(f'Copy the Config file from {args.config} to {config_path}', logger=logger)

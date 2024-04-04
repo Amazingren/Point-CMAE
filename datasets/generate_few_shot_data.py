@@ -36,6 +36,7 @@ def generate_fewshot_data(way, shot, prefix_ind, eval_sample=20):
         test_cls_dataset[label].append(point)
     print(sum([train_cls_dataset[i].__len__() for i in range(40)]))
     print(sum([test_cls_dataset[i].__len__() for i in range(40)]))
+    # import pdb; pdb.set_trace()
     keys = list(train_cls_dataset.keys())
     random.shuffle(keys)
 
@@ -48,6 +49,7 @@ def generate_fewshot_data(way, shot, prefix_ind, eval_sample=20):
 
         test_data_list = test_cls_dataset[key]
         random.shuffle(test_data_list)
+        # import pdb; pdb.set_trace()
         assert len(test_data_list) >= eval_sample
         for data in test_data_list[:eval_sample]:
             test_dataset.append((data, i, key))

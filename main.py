@@ -1,7 +1,8 @@
 from tools import pretrain_run_net as pretrain
 from tools import finetune_run_net as finetune
 from tools import test_run_net as test_net
-from tools.runner_finetune import test_net_extract_feat
+from tools import zeroshot_run_net as zeroshot
+from tools import svm_run_net as svm
 from utils import parser, dist_utils, misc
 from utils.logger import *
 from utils.config import *
@@ -9,6 +10,7 @@ import time
 import os
 import torch
 from tensorboardX import SummaryWriter
+
 
 def main():
     # args
@@ -39,47 +41,38 @@ def main():
             train_writer = None
             val_writer = None
     # config
-    config = get_config(args, logger = logger)
-
-    if args.options is not None:
-        merge_from_options(config, args.options)
-    if args.model_options is not None:
-        merge_from_options(config.model, args.model_options)
-    if args.T_options is not None:
-        merge_from_options(config.model.transformer_config, args.T_options)
-
+    config = get_config(args, logger=logger)
     # batch size
     if args.distributed:
         assert config.total_bs % world_size == 0
         config.dataset.train.others.bs = config.total_bs // world_size
         if config.dataset.get('extra_train'):
-            config.dataset.extra_train.others.bs = config.total_bs // world_size * 2
-        config.dataset.val.others.bs = config.total_bs // world_size * 2
+            config.dataset.extra_train.others.bs = config.total_bs // world_size
+        config.dataset.val.others.bs = config.total_bs // world_size
         if config.dataset.get('test'):
-            config.dataset.test.others.bs = config.total_bs // world_size 
+            config.dataset.test.others.bs = config.total_bs // world_size
     else:
         config.dataset.train.others.bs = config.total_bs
         if config.dataset.get('extra_train'):
-            config.dataset.extra_train.others.bs = config.total_bs * 2
-        config.dataset.val.others.bs = config.total_bs * 2
+            config.dataset.extra_train.others.bs = config.total_bs
+        if config.dataset.get('extra_val'):
+            config.dataset.extra_val.others.bs = config.total_bs
+        config.dataset.val.others.bs = config.total_bs
         if config.dataset.get('test'):
-            config.dataset.test.others.bs = config.total_bs 
-
-    # log 
-    log_args_to_file(args, 'args', logger = logger)
-    log_config_to_file(config, 'config', logger = logger)
-    # exit()
+            config.dataset.test.others.bs = config.total_bs
+            # log
+    log_args_to_file(args, 'args', logger=logger)
+    log_config_to_file(config, 'config', logger=logger)
     logger.info(f'Distributed training: {args.distributed}')
     # set random seeds
     if args.seed is not None:
         logger.info(f'Set random seed to {args.seed}, '
                     f'deterministic: {args.deterministic}')
-        misc.set_random_seed(args.seed + args.local_rank, deterministic=args.deterministic) # seed + rank, for augmentation
+        misc.set_random_seed(args.seed + args.local_rank,
+                             deterministic=args.deterministic)  # seed + rank, for augmentation
     if args.distributed:
         assert args.local_rank == torch.distributed.get_rank()
-    if args.disable_tf32:
-        torch.backends.cuda.matmul.allow_tf32 = False
-        torch.backends.cudnn.allow_tf32 = False
+
     if args.shot != -1:
         config.dataset.train.others.shot = args.shot
         config.dataset.train.others.way = args.way
@@ -87,24 +80,14 @@ def main():
         config.dataset.val.others.shot = args.shot
         config.dataset.val.others.way = args.way
         config.dataset.val.others.fold = args.fold
-        
+
     # run
     if args.test:
-        if args.extract_feats:
-            test_net_extract_feat(args, config)
-        else:
-            test_net(args, config)
-    elif args.fold == -10:
-        assert args.finetune_model
-        metrics_list = []
-        for fold in range(10):
-            args.fold = fold
-            config.dataset.train.others.fold = args.fold
-            config.dataset.val.others.fold = args.fold
-            metrics = finetune(args, config, train_writer, val_writer)
-            metrics_list.append([metric.acc if type(metric.acc) == float else metric.acc.item() for metric in metrics])
-        import pickle
-        pickle.dump(metrics_list, open(f'{args.experiment_path}/metrics.pkl', 'wb'))
+        test_net(args, config)
+    elif args.zeroshot:
+        zeroshot(args, config)
+    elif args.svm:
+        svm(args, config)
     else:
         if args.finetune_model or args.scratch_model:
             finetune(args, config, train_writer, val_writer)

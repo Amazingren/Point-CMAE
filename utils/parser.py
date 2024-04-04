@@ -2,22 +2,21 @@ import os
 import argparse
 from pathlib import Path
 
-from .parser_utils import DictAction
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--config',
-        type = str,
-        help = 'yaml config file')
+        type=str,
+        help='yaml config file')
     parser.add_argument(
         '--launcher',
         choices=['none', 'pytorch'],
         default='none',
         help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument('--num_workers', type=int, default=4)
-    # seed
+    parser.add_argument('--num_workers', type=int, default=8)
+    # seed 
     parser.add_argument('--seed', type=int, default=0, help='random seed')
     parser.add_argument(
         '--deterministic',
@@ -30,73 +29,51 @@ def get_args():
         default=False,
         help='whether to use sync bn')
     # some args
-    parser.add_argument('--exp_name', type = str, default='default', help = 'experiment name')
-    parser.add_argument('--start_ckpts', type = str, default=None, help = 'reload used ckpt path')
-    parser.add_argument('--ckpts', type = str, default=None, help = 'test used ckpt path')
-    parser.add_argument('--val_freq', type = int, default=1, help = 'test freq')
+    parser.add_argument('--exp_name', type=str, default='default', help='experiment name')
+    parser.add_argument('--loss', type=str, default='cd1', help='loss name')
+    parser.add_argument('--start_ckpts', type=str, default=None, help='reload used ckpt path')
+    parser.add_argument('--ckpts', type=str, default=None, help='test used ckpt path')
+    parser.add_argument('--val_freq', type=int, default=1, help='test freq')
+    parser.add_argument(
+        '--vote',
+        action='store_true',
+        default=False,
+        help='vote acc')
     parser.add_argument(
         '--resume',
         action='store_true',
         default=False,
-        help = 'autoresume training (interrupted by accident)')
+        help='autoresume training (interrupted by accident)')
+    parser.add_argument(
+        '--svm',
+        action='store_true',
+        default=False,
+        help='svm')
+    parser.add_argument(
+        '--zeroshot',
+        action='store_true',
+        default=False,
+        help='zero-shot')
     parser.add_argument(
         '--test',
         action='store_true',
         default=False,
-        help = 'test mode for certain ckpt')
-    parser.add_argument(
-        '--no_vote',
-        action='store_true',
-        default=False,
-        help = 'skip voting for evaluation')
+        help='test mode for certain ckpt')
     parser.add_argument(
         '--finetune_model',
         action='store_true',
         default=False,
-        help = 'finetune modelnet with pretrained weight')
+        help='finetune modelnet with pretrained weight')
     parser.add_argument(
         '--scratch_model',
         action='store_true',
         default=False,
-        help = 'training modelnet from scratch')
-    parser.add_argument(
-        '--overfit_single_batch',
-        action='store_true',
-        default=False,
-        help = 'enable single batch overfit debugging')
-    parser.add_argument(
-        '--debug_grad',
-        action='store_true',
-        default=False,
-        help = 'enable gradient debugging')
-    parser.add_argument(
-        '--disable_tf32',
-        action='store_true',
-        default=False,
-        help = 'disable tf32')
-    parser.add_argument(
-        '--options',
-        nargs='+',
-        action=DictAction)
-    parser.add_argument(
-        '--model_options',
-        nargs='+',
-        action=DictAction)
-    parser.add_argument(
-        '--T_options',
-        nargs='+',
-        action=DictAction)
-    parser.add_argument('--extract_feats', action='store_true', default=False,)
-    parser.add_argument(
-        '--debug_spike',
-        action='store_true',
-        default=False,
-        help = 'enable spike debugging')
+        help='training modelnet from scratch')
     parser.add_argument(
         '--mode',
         choices=['easy', 'median', 'hard', None],
         default=None,
-        help = 'difficulty mode for shapenet')
+        help='difficulty mode for shapenet')
     parser.add_argument(
         '--way', type=int, default=-1)
     parser.add_argument(
@@ -115,31 +92,28 @@ def get_args():
             '--resume and --start_ckpts cannot be both activate')
 
     if args.test and args.ckpts is None:
-        if not args.extract_feats:
-            raise ValueError(
-                'ckpts shouldnt be None while test mode')
+        raise ValueError(
+            'ckpts shouldnt be None while test mode')
 
     if args.finetune_model and args.ckpts is None:
-        raise ValueError(
-            'ckpts shouldnt be None while finetune_model mode')
+        print(
+            'training from scratch')
 
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
-
-    if args.seed == -1:
-        import random
-        args.seed = random.randint(1000, 9999)
-        args.exp_name += f'_seed{args.seed}'
 
     if args.test:
         args.exp_name = 'test_' + args.exp_name
     if args.mode is not None:
         args.exp_name = args.exp_name + '_' + args.mode
-    args.experiment_path = os.path.join('./experiments', Path(args.config).stem, args.exp_name)
-    args.tfboard_path = os.path.join('./experiments', 'TFBoard', Path(args.config).stem, args.exp_name)
+    args.experiment_path = os.path.join('./experiments', Path(args.config).stem, Path(args.config).parent.stem,
+                                        args.exp_name)
+    args.tfboard_path = os.path.join('./experiments', Path(args.config).stem, Path(args.config).parent.stem, 'TFBoard',
+                                     args.exp_name)
     args.log_name = Path(args.config).stem
     create_experiment_dir(args)
     return args
+
 
 def create_experiment_dir(args):
     if not os.path.exists(args.experiment_path):
@@ -148,4 +122,3 @@ def create_experiment_dir(args):
     if not os.path.exists(args.tfboard_path):
         os.makedirs(args.tfboard_path)
         print('Create TFBoard path successfully at %s' % args.tfboard_path)
-
