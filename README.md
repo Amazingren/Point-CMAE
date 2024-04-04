@@ -12,15 +12,16 @@ This is a baseline code repo. for 3D representation learning.
 - TODO
 
 
-
 ### Novelty
 - SelfPatch...
 
 
-
 ### Some Experiments Tips:
 - Environments: Use the PointMAE's envs for partsegmentation experiments, while for the rest, just the envs of MaskPoint.
-- 
+- Use data aumengation mentioned in [ACT](https://github.com/RunpeiDong/ACT) can largely improve the finetune results. But our onw results are still a bit lower than what we expected.
+
+
+
 
 
 
@@ -29,6 +30,7 @@ Please check out our paper [here](https://arxiv.org/abs/2203.11183).
 <div align="center">
   <img src="figure/concept.png" width="640">
 </div>
+
 
 ## Pretrained Models
 
