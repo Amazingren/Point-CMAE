@@ -182,14 +182,21 @@ class Block(nn.Module):
 
             cls = self.norm1_contrast(cls)
             vis_x = self.norm1(vis_x)
+
+            # Update the cls with CrossAttention, More Computation Cost
             if self.finetune:
                 cls = cls + self.drop_path(self.attn_contrast(cls, vis_x))
             else:
                 cls = cls + self.drop_path(self.attn_contrast(cls, vis_x.detach()))
+
+            # Skip-Connection Attn
             vis_x = vis_x + self.drop_path(self.attn(vis_x))
 
+            # Norm
             cls = self.norm2_contrast(cls)
             vis_x = self.norm2(vis_x)
+
+            # Skip-Connection MLP for both cls & vis_x
             cls = cls + self.drop_path(self.mlp_contrast(cls))
             vis_x = vis_x + self.drop_path(self.mlp(vis_x))
 
