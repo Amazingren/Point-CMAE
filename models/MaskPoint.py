@@ -154,15 +154,10 @@ class MaskPointTransformer(nn.Module):
         self.trans_dim = config.transformer_config.trans_dim
         self.depth = config.transformer_config.depth
         self.dec_depth = config.transformer_config.dec_depth
-        self.dec_query_mode = config.transformer_config.dec_query_mode
-        self.dec_query_real_num = config.transformer_config.dec_query_real_num
-        self.dec_query_fake_num = config.transformer_config.dec_query_fake_num
         self.drop_path_rate = config.transformer_config.drop_path_rate
         self.cls_dim = config.transformer_config.cls_dim
         self.use_sigmoid = config.transformer_config.use_sigmoid
         self.num_heads = config.transformer_config.num_heads
-        self.ambiguous_threshold = config.transformer_config.ambiguous_threshold
-        self.ambiguous_dynamic_threshold = config.transformer_config.ambiguous_dynamic_threshold
         self.use_pts_mae_loss = config.transformer_config.use_pts_mae_loss
         self.use_cluster_loss = config.transformer_config.use_cluster_loss
         print_log(f'[Transformer args] {config.transformer_config}', logger='MaskPoint')
@@ -279,43 +274,6 @@ class MaskPointTransformer(nn.Module):
             trunc_normal_(m.weight, std=.02)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
-
-    def _generate_fake_query(self, target):
-        B = target.shape[0]
-        min_coords, max_coords = torch.min(target, dim=1, keepdim=True)[0], torch.max(target, dim=1, keepdim=True)[0]
-        fake_target = torch.rand(B, self.dec_query_fake_num, 3, dtype=target.dtype, device=target.device) * (
-                    max_coords - min_coords) + min_coords
-        return fake_target
-
-    def _generate_query_xyz(self, points, center, mode='center'):
-        if mode == 'center':
-            target = center
-        elif mode == 'points':
-            if self.dec_query_real_num == -1:
-                target = points
-            else:
-                target = pointops.fps(points, self.dec_query_real_num)
-
-        bs, npoints, _ = target.shape
-        q, fake_q = target, self._generate_fake_query(target)
-
-        nn_dist = pointops.knn(fake_q, points, 1)[1].squeeze()
-        if self.ambiguous_dynamic_threshold > 0:
-            assert self.ambiguous_threshold == -1
-            if self.ambiguous_dynamic_threshold == self.dec_query_real_num:
-                thres_q = q
-            else:
-                thres_q = pointops.fps(points, self.ambiguous_dynamic_threshold)
-            dist_thres = pointops.knn(thres_q, thres_q, 2)[1][..., -1].mean(-1, keepdims=True)
-        else:
-            assert self.ambiguous_dynamic_threshold == -1
-            dist_thres = self.ambiguous_threshold
-        queries = torch.cat((q, fake_q), dim=1)
-        labels = torch.zeros(bs, queries.shape[1], dtype=torch.long, device=target.device)
-        labels[:, :npoints] = 1
-        labels[:, npoints:][nn_dist < dist_thres] = -1
-
-        return queries, labels
 
     def preencoder(self, neighborhood):
         group_input_tokens = self.encoder(neighborhood)  # B G N
