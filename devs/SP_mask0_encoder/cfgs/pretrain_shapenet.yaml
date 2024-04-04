@@ -39,11 +39,6 @@ model : {
     use_focal_loss: true,
     focal_loss_alpha: 0.25,
     focal_loss_gamma: 2,
-    ambiguous_threshold: -1,
-    ambiguous_dynamic_threshold: 256,
-    dec_query_mode: points,     # [center, points]
-    dec_query_real_num: 256,
-    dec_query_fake_num: 256,
     drop_path_rate: 0.1,
     cls_dim: 256,
     num_heads: 6,

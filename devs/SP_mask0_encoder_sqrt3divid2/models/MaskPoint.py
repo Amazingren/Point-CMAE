@@ -154,14 +154,9 @@ class MaskPointTransformer(nn.Module):
         self.trans_dim = config.transformer_config.trans_dim
         self.depth = config.transformer_config.depth
         self.dec_depth = config.transformer_config.dec_depth
-        self.dec_query_mode = config.transformer_config.dec_query_mode
-        self.dec_query_real_num = config.transformer_config.dec_query_real_num
-        self.dec_query_fake_num = config.transformer_config.dec_query_fake_num
         self.drop_path_rate = config.transformer_config.drop_path_rate
         self.cls_dim = config.transformer_config.cls_dim
         self.num_heads = config.transformer_config.num_heads
-        self.ambiguous_threshold = config.transformer_config.ambiguous_threshold
-        self.ambiguous_dynamic_threshold = config.transformer_config.ambiguous_dynamic_threshold
         print_log(f'[Transformer args] {config.transformer_config}', logger = 'MaskPoint')
         # define the encoder
         self.enc_arch = config.transformer_config.get('enc_arch', 'PointViT')
