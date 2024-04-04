@@ -334,6 +334,7 @@ class MaskPoint(nn.Module):
         for param_q, param_k in zip(self.transformer_q.parameters(), self.transformer_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
             param_k.requires_grad = False  # not update by gradient
+
         self.use_moco_loss = config.transformer_config.use_moco_loss
         self.moco_loss_weight = config.transformer_config.moco_loss_weight
         self.selfpatch_loss_weight = config.transformer_config.selfpatch_loss_weight
@@ -355,6 +356,7 @@ class MaskPoint(nn.Module):
         self.register_buffer("queue", torch.randn(self.transformer_q.cls_dim, self.K))
         self.queue = nn.functional.normalize(self.queue, dim=0)
         self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
+
         self.loss_ce = nn.CrossEntropyLoss()
         self.loss_ce_batch = nn.CrossEntropyLoss(reduction='none')
 
