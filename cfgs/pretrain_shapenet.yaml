@@ -47,7 +47,7 @@ model : {
     num_heads: 6,
     group_size: 32, 
     num_group: 64, 
-    encoder_dims: 256,
+    encoder_dims: 384,
   }
 }
 
