@@ -290,6 +290,15 @@ class ReCon(nn.Module):
 
         x_rec = self.MAE_decoder(x_full, pos_full, N)
 
+        # --- Geometrically Coherent Loss
+        # Set all the neighborhoo and center to the encoder and the decoder
+        with torch.no_grad():
+            # step1: pass the encoder:
+            cls_token, img_token, text_token, x_vis, mask = self.MAE_encoder(pts, neighborhood, center, noaug=True)
+
+            
+
+
         B, M, C = x_rec.shape
         rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
 
