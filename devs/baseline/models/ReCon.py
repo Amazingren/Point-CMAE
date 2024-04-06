@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 from .build import MODELS
 from utils.logger import *
@@ -255,6 +256,8 @@ class ReCon(nn.Module):
             self.cls_proj.apply(self._init_weights)
             self.contrastive_head = ContrastiveHead(temperature=0.1)
 
+        self.self_patch = config.self_patch
+
     def build_loss_func(self, loss_type):
         if loss_type == "cdl1":
             self.loss_func = ChamferDistanceL1().cuda()
@@ -288,16 +291,33 @@ class ReCon(nn.Module):
         x_full = torch.cat([x_vis, mask_token], dim=1)
         pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
 
-        x_rec = self.MAE_decoder(x_full, pos_full, N)
+        x_rec, q_patch_feats = self.MAE_decoder(x_full, pos_full, N)
 
         # --- Geometrically Coherent Loss
         # Set all the neighborhoo and center to the encoder and the decoder
-        with torch.no_grad():
-            # step1: pass the encoder:
-            cls_token, img_token, text_token, x_vis, mask = self.MAE_encoder(pts, neighborhood, center, noaug=True)
+        if self.self_patch:
+            with torch.no_grad():
+                _, _, _, x_all, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
+                _, k_patch_feats = self.MAE_decoder(x_all, pos_full, N)
 
-            
+                q_patch_predict = F.normalize(q_patch_feats, dim=-1)
+                k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
 
+                cdist = torch.cdist(center, center)
+                radius = torch.topk(cdist, k=2, dim=-1, largest=False)[0][:, 1].mean(dim=-1, keepdim=True)
+                feats_dis = torch.cdist(k_patch_feats_norm, k_patch_feats_norm)
+                mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(3)/2)).to(cdist)
+
+                global_weight = torch.exp(-cdist / 1.0) * (2 - feats_dis)
+                neighbor_weight = (global_weight * mask_sp / (
+                (global_weight * mask_sp).sum(dim=-1, keepdim=True).clip(min=1e-5))).detach()
+
+                new_feats = torch.einsum('bmk,bmd->bkd', neighbor_weight, k_patch_feats)
+                new_feats = F.normalize(new_feats, dim=-1)
+
+                gamma_log = torch.einsum('bmd,bnd->bmn', q_patch_predict, new_feats)
+                losses['selfpatch_loss'] = -torch.mean(
+                    torch.sum(mask_sp * global_weight.detach() * F.log_softmax(gamma_log, dim=1), dim=1))
 
         B, M, C = x_rec.shape
         rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024

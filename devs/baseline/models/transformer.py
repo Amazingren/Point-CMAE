@@ -256,8 +256,8 @@ class TransformerDecoder(nn.Module):
         for _, block in enumerate(self.blocks):
             x = block(x + pos)
 
-        x = self.head(self.norm(x[:, -return_token_num:]))  # only return the mask tokens predict pixel
-        return x
+        x_rec = self.head(self.norm(x[:, -return_token_num:]))  # only return the mask tokens predict pixel
+        return x_rec, x
 
 
 # finetune model
