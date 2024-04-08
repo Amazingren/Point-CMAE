@@ -1,6 +1,6 @@
-CUDA_VISIBLE_DEVICES=5 python main.py \
+CUDA_VISIBLE_DEVICES=0 python main.py \
     --config cfgs/pretrain/base.yaml \
-    --exp_name dev_baseline1
+    --exp_name dev_sponly
 
 # Final Command
 # CUDA_VISIBLE_DEVICES=$1 python main.py --config cfgs/pretrain/base.yaml --exp_name $2

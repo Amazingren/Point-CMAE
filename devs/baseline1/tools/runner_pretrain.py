@@ -134,6 +134,7 @@ def run_net(args, config, train_writer=None, val_writer=None):
             points = train_transforms(points)
             img = img.cuda()
             loss = base_model(points, img, text)
+
             try:
                 loss.backward()
                 # print("Using one GPU")

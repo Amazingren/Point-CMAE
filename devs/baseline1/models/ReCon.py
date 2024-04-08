@@ -300,30 +300,32 @@ class ReCon(nn.Module):
                 _, _, _, x_all, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
                 _, k_patch_feats = self.MAE_decoder(x_all, pos_full, N)
 
-                q_patch_predict = F.normalize(q_patch_feats, dim=-1)
-                k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
+            q_patch_predict = F.normalize(q_patch_feats, dim=-1)
+            k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
 
-                cdist = torch.cdist(center, center)
-                radius = torch.topk(cdist, k=2, dim=-1, largest=False)[0][:, 1].mean(dim=-1, keepdim=True)
-                feats_dis = torch.cdist(k_patch_feats_norm, k_patch_feats_norm)
-                mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(3)/2)).to(cdist)
+            cdist = torch.cdist(center, center)
+            radius = torch.topk(cdist, k=2, dim=-1, largest=False)[0][:, 1].mean(dim=-1, keepdim=True)
+            feats_dis = torch.cdist(k_patch_feats_norm, k_patch_feats_norm)
+            mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(3)/2)).to(cdist)
 
-                global_weight = torch.exp(-cdist / 1.0) * (2 - feats_dis)
-                neighbor_weight = (global_weight * mask_sp / (
-                (global_weight * mask_sp).sum(dim=-1, keepdim=True).clip(min=1e-5))).detach()
+            global_weight = torch.exp(-cdist / 1.0) * (2 - feats_dis)
+            neighbor_weight = (global_weight * mask_sp / (
+            (global_weight * mask_sp).sum(dim=-1, keepdim=True).clip(min=1e-5))).detach()
 
-                new_feats = torch.einsum('bmk,bmd->bkd', neighbor_weight, k_patch_feats)
-                new_feats = F.normalize(new_feats, dim=-1)
+            new_feats = torch.einsum('bmk,bmd->bkd', neighbor_weight, k_patch_feats)
+            new_feats = F.normalize(new_feats, dim=-1)
 
-                gamma_log = torch.einsum('bmd,bnd->bmn', q_patch_predict, new_feats)
-                losses['selfpatch_loss'] = -torch.mean(
-                    torch.sum(global_weight.detach() * F.log_softmax(gamma_log, dim=1), dim=1))
+            gamma_log = torch.einsum('bmd,bnd->bmn', q_patch_predict, new_feats)
+
+            losses['selfpatch_loss'] = -torch.mean(
+                    torch.sum(mask_sp * global_weight.detach() * F.log_softmax(gamma_log, dim=1), dim=1))
+
 
         B, M, C = x_rec.shape
-        rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
+        # rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
 
-        gt_points = neighborhood[mask].reshape(B * M, -1, 3)
-        losses['mdm'] = self.loss_func(rebuild_points, gt_points)
+        # gt_points = neighborhood[mask].reshape(B * M, -1, 3)
+        # losses['mdm'] = self.loss_func(rebuild_points, gt_points)
 
         if self.csc_img:
             img_feature = self.img_encoder(img)
