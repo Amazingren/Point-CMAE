@@ -316,8 +316,9 @@ class ReCon(nn.Module):
 
             q_patch_predict = F.normalize(q_patch_feats, dim=-1)
             gamma_log = torch.einsum('bmd,bnd->bmn', q_patch_predict, new_feats)
-            losses['selfpatch_loss'] = -torch.mean(
+            loss_selfpatch = -torch.mean(
                 torch.sum(mask_sp * global_weight.detach() * F.log_softmax(gamma_log, dim=1), dim=1))
+            losses['selfpatch_loss'] = loss_selfpatch * 0.1
 
         B, M, C = x_rec.shape
         rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
