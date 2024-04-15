@@ -13,7 +13,7 @@ This is a baseline code repo. for 3D representation learning.
 
 
 ### Novelty
-- SelfPatch...
+- SelfPatch.... It seems it's the problem of the method itself.
 
 
 ### Some Experiments Tips:
