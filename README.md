@@ -2,19 +2,18 @@
 ### Baseline Methods: [ECCV 2022] Masked Discrimination for Self-Supervised Learning on Point Clouds 
 
 This is a baseline code repo. for 3D representation learning.
-
-[Bin Ren](https://amazingren.github.io/), [Guofeng Mei](https://gfmei.github.io/),
+[Bin Ren](https://amazingren.github.io/), [Guofeng Mei](https://gfmei.github.io/), ...
 
 
 ### Preliminary Documents: 
 - [Recording Slides](https://docs.google.com/presentation/d/1LHFJIDp88kTf5owCK34yF94Ds06GaEZYv3IDShSem1I/edit?usp=sharing)
 - [Preliminary Results](https://docs.google.com/spreadsheets/d/1sStvOSvblkMnCuITnskVC1LL006ploF1f_gpW3gP1S8/edit?usp=sharing)
-- TODO
+- [Overleaf]()
 
 
 ### Novelty
-- SelfPatch.... It seems it's the problem of the method itself.
-
+- [x] SelfPatch.... It seems it's the problem of the method itself.
+- [ ] Try to use Dino loss in this proble. 
 
 ### Some Experiments Tips:
 - Environments: Use the PointMAE's envs for partsegmentation experiments, while for the rest, just the envs of MaskPoint.
