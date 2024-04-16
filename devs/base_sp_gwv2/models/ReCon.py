@@ -308,8 +308,8 @@ class ReCon(nn.Module):
 
                 mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(3)/2)).to(cdist)
 
-                global_weight = torch.exp(-cdist / 1.0) * (2 - feats_dis)
-                # global_weight = 2 - feats_dis
+                # global_weight = torch.exp(-cdist / 1.0) * (2 - feats_dis)
+                global_weight = 2 - feats_dis
                 neighbor_weight = (global_weight * mask_sp / (
                 (global_weight * mask_sp).sum(dim=-1, keepdim=True).clip(min=1e-5))).detach()
 

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.distributed as dist
 import numpy as np
 from .build import MODELS
 from utils.logger import *
@@ -298,7 +299,7 @@ class ReCon(nn.Module):
         if self.self_patch:
             with torch.no_grad():
                 _, _, _, x_all, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
-                _, k_patch_feats = self.MAE_decoder(x_all, pos_full, N)
+                _, k_patch_feats = self.MAE_decoder(x_all, pos_full, N) # [bs, 64, 384]
 
                 k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
 
@@ -309,19 +310,19 @@ class ReCon(nn.Module):
 
                 global_weight = torch.exp(-cdist / 1.0) * (2 - feats_dis)
                 neighbor_weight = (global_weight * mask_sp / (
-                (global_weight * mask_sp).sum(dim=-1, keepdim=True).clip(min=1e-5))).detach()
+                (global_weight * mask_sp).sum(dim=-1, keepdim=True).clip(min=1e-5))).detach() # [bs, 64, 64]
 
+                # Update teacher patch with the neighbor weight
                 new_feats = torch.einsum('bmk,bmd->bkd', neighbor_weight, k_patch_feats)
-                new_feats = F.normalize(new_feats, dim=-1)
+                new_feats = F.normalize(new_feats, dim=-1) # [bs, 64, 384]
 
-                update_k_patch_feats = (neighbor_weight * k_patch_feats).sum(dim=1)
+            q_patch_predict = F.normalize(q_patch_feats, dim=-1) # [bs, 64, 384]
 
-            smi_qk = torch.einsum('',q_patch_feats, update_k_patch_feats)
+            # similarity between student predict and the updated teacher patch feats
+            gamma_log = torch.einsum('bmd,bnd->bmn', q_patch_predict, new_feats) # [bs, 64, 64]
 
-            q_patch_predict = F.normalize(q_patch_feats, dim=-1)
-            gamma_log = torch.einsum('bmd,bnd->bmn', q_patch_predict, new_feats)
-            loss_selfpatch = -torch.mean(
-                torch.sum(mask_sp * global_weight.detach() * F.log_softmax(gamma_log, dim=1), dim=1))
+            student_temp = 0.1
+            loss_selfpatch =  torch.sum(- F.log_softmax(gamma_log / student_temp, dim=1), dim=1)
             losses['selfpatch_loss'] = loss_selfpatch * 0.1
 
         B, M, C = x_rec.shape
