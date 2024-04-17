@@ -201,6 +201,8 @@ class DINOHead(nn.Module):
         return x
 
 
+
+
 class DINOLoss(nn.Module):
     def __init__(self, out_dim, out_dim_selfpatch, ncrops, warmup_teacher_temp, teacher_temp,
                  warmup_teacher_temp_epochs, nepochs, student_temp=0.1,
@@ -220,13 +222,13 @@ class DINOLoss(nn.Module):
             np.ones(nepochs - warmup_teacher_temp_epochs) * teacher_temp
         ))
 
-    def forward(self, student_output, teacher_output, epoch, it):
+    def forward(self, student_output, teacher_output, epoch):
         """
         Cross-entropy between softmax outputs of the teacher and student networks.
         """
         # teacher centering and sharpening
-        student_cls = student_output[0].chunk(2)
-        student_loc = student_output[1].chunk(2)
+        student_cls = student_output[0].chunk(2) # ([bs/2, 1, 384], [bs/2, 1, 384])
+        student_loc = student_output[1].chunk(2) # ([bs/2, 64, 384], [bs/2, 64, 384])
 
         teacher_cls = teacher_output[0].chunk(2) 
         teacher_loc = teacher_output[1].chunk(2)
@@ -239,27 +241,27 @@ class DINOLoss(nn.Module):
         m_loss_terms = 0
         for iq in range(len(teacher_cls)):
             q_cls = F.softmax((teacher_cls[iq] - self.center)/ temp, dim=-1).detach()
-            for v in range(self.ncrops): #  N groups
-                if v == iq:
-                    q_pat = F.softmax((teacher_loc[iq] - self.patch_center)/ temp, dim=-1).detach()
+            q_pat = F.softmax((teacher_loc[iq]) - self.patch_center/ temp, dim=-1).detach()
+            p_pat = student_loc[iq]
 
+            # patch_loss
+            patch_loss = torch.sum(-q_pat * F.log_softmax(p_pat / self.student_temp, dim=-1), dim = -1)
+            p_loss += patch_loss.mean()
+            m_loss_terms += 1
 
-                    p_pat = student_loc[v]
-                    patch_loss = torch.sum(-q_pat * F.log_softmax(p_pat / self.student_temp, dim=-1), dim=-1)
-                    p_loss += patch_loss.mean()
-                    m_loss_terms += 1
-                else:
-                    if iq > 1:
-                        continue
-                    cls_loss = torch.sum(-q_cls * F.log_softmax(student_cls[v] / self.student_temp, dim=-1), dim=-1)
-                    c_loss += cls_loss.mean()
-                    n_loss_terms += 1
+            # cls loss
+            cls_loss = torch.sum
+            cls_loss = torch.sum(-q_cls * F.log_softmax(student_cls[iq] / self.student_temp, dim=-1), dim=-1)
+            c_loss += cls_loss.mean()
+            n_loss_terms += 1
+
         c_loss /= n_loss_terms
         p_loss /= m_loss_terms
-        
+
         self.update_center(torch.cat(teacher_cls), it)
         self.update_patch_center(teacher_loc, it)
         return (c_loss + p_loss*0.1), c_loss.item(), p_loss.item()
+
 
     @torch.no_grad()
     def update_center(self, teacher_output, it):
@@ -276,15 +278,18 @@ class DINOLoss(nn.Module):
     @torch.no_grad()
     def update_patch_center(self, teacher_output, it):
         self.patch_center = self.patch_center * self.center_momentum + batch_center * (1 - self.center_momentum)
+    
 
 
 
 if __name__ == "__main__":
     # pass
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     fake_inp = torch.rand(128, 64, 384).to(device)
+
+    test_tensor_c = fake_inp[:, 0:1, :].chunk(2)
+    test_tensor_p = fake_inp.chunk(2)
 
     aggreation_head = SelfPatchHead(in_dim=384, num_heads=6).to(device)
     out_agg = aggreation_head(fake_inp)
