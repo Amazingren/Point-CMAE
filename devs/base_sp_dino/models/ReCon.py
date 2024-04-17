@@ -298,8 +298,14 @@ class ReCon(nn.Module):
         # Set all the neighborhoo and center to the encoder and the decoder
         if self.self_patch:
             with torch.no_grad():
+                # Step1: Only the encoder cls_token & features 
+
+                # Step2: Construct the Contractive Global & Contractive Local
+
+                # Step3: output the loss
                 _, _, _, x_all, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
                 _, k_patch_feats = self.MAE_decoder(x_all, pos_full, N) # [bs, 64, 384]
+
 
                 k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
 
