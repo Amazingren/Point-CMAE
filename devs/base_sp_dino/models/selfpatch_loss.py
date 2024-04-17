@@ -141,7 +141,7 @@ class SelfPatchHead(nn.Module):
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, cls_tokens, x, loc=False):
+    def forward(self, x, loc=False):
         cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)
         if loc: # only for teacher
             x_loc = x
@@ -291,5 +291,10 @@ if __name__ == "__main__":
 
     fake_inp = torch.rand(128, 64, 384).to(device)
 
-    sp_aggreation_head = SelfPatchHead(in_dim=384, num_heads=6)
-    out = sp_aggreation_head(fake_inp)
+    aggreation_head = SelfPatchHead(in_dim=384, num_heads=6).to(device)
+    out_agg = aggreation_head(fake_inp)
+
+    projection_head = DINOHead(in_dim=384, out_dim=384, use_bn=False, norm_last_layer=True, nlayers=3, hidden_dim=2048, bottleneck_dim=256).to(device) 
+    out_proj = projection_head(out_agg)
+
+    print(out_proj.shape)
