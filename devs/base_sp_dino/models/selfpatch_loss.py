@@ -224,18 +224,11 @@ class DINOLoss(nn.Module):
         Cross-entropy between softmax outputs of the teacher and student networks.
         """
         # teacher centering and sharpening
-        student_cls = student_output[0][0].chunk(2) + student_output[1][0].chunk(self.ncrops-2)
-        student_loc = student_output[0][1].chunk(2) + student_output[1][1].chunk(self.ncrops-2)
-
-        teacher_cls = teacher_output[0][0].chunk(2) + teacher_output[1][0].chunk(self.ncrops-2)
-        teacher_loc = teacher_output[0][1].chunk(2) + teacher_output[1][1].chunk(self.ncrops-2)
-
-        student_cls = student_output[0][0].chunk(2) + student_output[1][0].chunk(self.ncrops-2)
-
-
-
         student_cls = student_output[0].chunk(2)
-        student_cls
+        student_loc = student_output[1].chunk(2)
+
+        teacher_cls = teacher_output[0].chunk(2) 
+        teacher_loc = teacher_output[1].chunk(2)
 
         temp = self.teacher_temp_schedule[epoch]
 
@@ -243,12 +236,13 @@ class DINOLoss(nn.Module):
         p_loss = 0
         n_loss_terms = 0
         m_loss_terms = 0
-        assert len(teacher_cls) == self.ncrops
         for iq in range(len(teacher_cls)):
             q_cls = F.softmax((teacher_cls[iq] - self.center)/ temp, dim=-1).detach()
-            for v in range(self.ncrops):
+            for v in range(self.ncrops): #  N groups
                 if v == iq:
                     q_pat = F.softmax((teacher_loc[iq] - self.patch_center)/ temp, dim=-1).detach()
+
+
                     p_pat = student_loc[v]
                     patch_loss = torch.sum(-q_pat * F.log_softmax(p_pat / self.student_temp, dim=-1), dim=-1)
                     p_loss += patch_loss.mean()
@@ -294,7 +288,10 @@ if __name__ == "__main__":
     aggreation_head = SelfPatchHead(in_dim=384, num_heads=6).to(device)
     out_agg = aggreation_head(fake_inp)
 
-    projection_head = DINOHead(in_dim=384, out_dim=384, use_bn=False, norm_last_layer=True, nlayers=3, hidden_dim=2048, bottleneck_dim=256).to(device) 
+    projection_head = DINOHead(in_dim=384, out_dim=384, 
+                               use_bn=False, norm_last_layer=True, 
+                               nlayers=3, hidden_dim=2048, bottleneck_dim=256).to(device) 
+    
     out_proj = projection_head(out_agg)
 
     print(out_proj.shape)
