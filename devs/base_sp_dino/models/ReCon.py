@@ -294,15 +294,26 @@ class ReCon(nn.Module):
 
         x_rec, q_patch_feats = self.MAE_decoder(x_full, pos_full, N)
 
+        # SelfPatch head for student (Aggregation)
+
+        # Dino head for student (Projection)
+
+
         # --- Geometrically Coherent Loss
         # Set all the neighborhoo and center to the encoder and the decoder
         if self.self_patch:
             with torch.no_grad():
                 # Step1: Only the encoder cls_token & features 
+                cls_token_all, _, _, x_all, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
 
-                # Step2: Construct the Contractive Global & Contractive Local
+                # Step2: Aggregation & Projection
+                # 2.1: SelfPatch head for Teacher (Aggregation) 
 
-                # Step3: output the loss
+                # 2.2: Dino head for Teacher (Projection)
+
+                # Step3: Dino Loss
+
+
                 _, _, _, x_all, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
                 _, k_patch_feats = self.MAE_decoder(x_all, pos_full, N) # [bs, 64, 384]
 
