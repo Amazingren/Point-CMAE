@@ -201,16 +201,13 @@ class DINOHead(nn.Module):
         return x
 
 
-
-
 class DINOLoss(nn.Module):
-    def __init__(self, out_dim, out_dim_selfpatch, ncrops, warmup_teacher_temp, teacher_temp,
-                 warmup_teacher_temp_epochs, nepochs, student_temp=0.1,
+    def __init__(self, out_dim, out_dim_selfpatch, warmup_teacher_temp=0.04, teacher_temp=0.04,
+                 warmup_teacher_temp_epochs=30, nepochs=300, student_temp=0.1,
                  center_momentum=0.9):
         super().__init__()
         self.student_temp = student_temp
         self.center_momentum = center_momentum
-        self.ncrops = ncrops
         self.register_buffer("center", torch.zeros(1, 1, out_dim))
         self.register_buffer("patch_center", torch.zeros(1, out_dim_selfpatch))
 
@@ -239,7 +236,7 @@ class DINOLoss(nn.Module):
         p_loss = 0
         n_loss_terms = 0
         m_loss_terms = 0
-        for iq in range(len(teacher_cls)):
+        for iq in range(len(teacher_cls)): # actually, just range(2)
             q_cls = F.softmax((teacher_cls[iq] - self.center)/ temp, dim=-1).detach()
             q_pat = F.softmax((teacher_loc[iq]) - self.patch_center/ temp, dim=-1).detach()
             p_pat = student_loc[iq]
@@ -250,7 +247,6 @@ class DINOLoss(nn.Module):
             m_loss_terms += 1
 
             # cls loss
-            cls_loss = torch.sum
             cls_loss = torch.sum(-q_cls * F.log_softmax(student_cls[iq] / self.student_temp, dim=-1), dim=-1)
             c_loss += cls_loss.mean()
             n_loss_terms += 1
@@ -264,7 +260,7 @@ class DINOLoss(nn.Module):
 
 
     @torch.no_grad()
-    def update_center(self, teacher_output, it):
+    def update_center(self, teacher_output):
         """
         Update center used for teacher output.
         """
@@ -276,7 +272,7 @@ class DINOLoss(nn.Module):
         self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
 
     @torch.no_grad()
-    def update_patch_center(self, teacher_output, it):
+    def update_patch_center(self, teacher_output):
         self.patch_center = self.patch_center * self.center_momentum + batch_center * (1 - self.center_momentum)
     
 
