@@ -12,6 +12,7 @@ from models.CrossModal import TextTransformer as TextEncoder
 from models.CrossModal import VisionTransformer as ImageEncoder
 from timm.models.layers import trunc_normal_
 
+from models.selfpatch_loss import SelfPatchHead, DINOHead, DINOLoss
 
 # Pretrain model
 class MaskTransformer(nn.Module):
@@ -259,6 +260,28 @@ class ReCon(nn.Module):
 
         self.self_patch = config.self_patch
 
+        # --- For self patch loss:
+        self.sp_aggregat = SelfPatchHead(in_dim=384, num_heads=6)
+
+        # TODO: The dimensions need further adjust
+        self.dino_c_project = DINOHead(in_dim=384, out_dim=384, 
+                               use_bn=False, norm_last_layer=True, 
+                               nlayers=3, hidden_dim=2048, bottleneck_dim=256
+        )
+        self.dino_p_project = DINOHead(in_dim=384, out_dim=384, 
+                               use_bn=False, norm_last_layer=True, 
+                               nlayers=3, hidden_dim=2048, bottleneck_dim=256
+        )
+        
+        self.dino_loss = DINOLoss(
+            # args.out_dim, args.out_dim_selfpatch,
+            # args.local_crops_number + 2,  # total number of crops = 2 global crops + local_crops_number
+            # args.warmup_teacher_temp,
+            # args.teacher_temp,
+            # args.warmup_teacher_temp_epochs,
+            # args.epochs,
+        )
+
     def build_loss_func(self, loss_type):
         if loss_type == "cdl1":
             self.loss_func = ChamferDistanceL1().cuda()
@@ -294,52 +317,48 @@ class ReCon(nn.Module):
 
         x_rec, q_patch_feats = self.MAE_decoder(x_full, pos_full, N)
 
-        # SelfPatch head for student (Aggregation)
+        # SelfPatch aggregation head for student
+        agg_student = self.sp_aggregat(x_vis, loc = False) # [bs, vis + 1, 384]
 
-        # Dino head for student (Projection)
-
+        # Dino cls & patch projection head for student
+ 
+        student_output = [self.dino_c_project(agg_student[:, :1]), 
+                          self.dino_p_project(agg_student[:, 1:])]
 
         # --- Geometrically Coherent Loss
         # Set all the neighborhoo and center to the encoder and the decoder
         if self.self_patch:
             with torch.no_grad():
-                # Step1: Only the encoder cls_token & features 
-                cls_token_all, _, _, x_all, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
+                cls_token_all, _, _, k_patch_feats, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
 
-                # Step2: Aggregation & Projection
-                # 2.1: SelfPatch head for Teacher (Aggregation) 
-
-                # 2.2: Dino head for Teacher (Projection)
-
-                # Step3: Dino Loss
-
-
-                _, _, _, x_all, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
-                _, k_patch_feats = self.MAE_decoder(x_all, pos_full, N) # [bs, 64, 384]
-
-
+                # Step1: Update the encoder's patch feats for the teacher
                 k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
 
+                # 1.1: consturct the local patch mask
                 cdist = torch.cdist(center, center)
                 radius = torch.topk(cdist, k=2, dim=-1, largest=False)[0][:, 1].mean(dim=-1, keepdim=True)
                 feats_dis = torch.cdist(k_patch_feats_norm, k_patch_feats_norm)
                 mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(3)/2)).to(cdist)
 
+                # 1.2 construct the neighbor selection weight
                 global_weight = torch.exp(-cdist / 1.0) * (2 - feats_dis)
+                # global_weight = (2 - feats_dis)
                 neighbor_weight = (global_weight * mask_sp / (
                 (global_weight * mask_sp).sum(dim=-1, keepdim=True).clip(min=1e-5))).detach() # [bs, 64, 64]
 
-                # Update teacher patch with the neighbor weight
+                # 1.3 update teacher patch with the neighbor weight (choose the neighbors)
                 new_feats = torch.einsum('bmk,bmd->bkd', neighbor_weight, k_patch_feats)
                 new_feats = F.normalize(new_feats, dim=-1) # [bs, 64, 384]
 
-            q_patch_predict = F.normalize(q_patch_feats, dim=-1) # [bs, 64, 384]
+                # Step2: SelfPatch aggregation & DINO projection
+                # 2.1: selfPatch aggregation head for teacher 
+                agg_teacher = self.sp_aggregat(new_feats, loc = True) # [bs, vis + 1, 384]
 
-            # similarity between student predict and the updated teacher patch feats
-            gamma_log = torch.einsum('bmd,bnd->bmn', q_patch_predict, new_feats) # [bs, 64, 64]
+                # 2.2: dino cls & patch projection head for student
+                teacher_output = [self.dino_c_project(agg_teacher[:, :1]), 
+                                  self.dino_p_project(agg_teacher[:, 1:])]
 
-            student_temp = 0.1
-            loss_selfpatch =  torch.sum(- F.log_softmax(gamma_log / student_temp, dim=1), dim=1)
+            loss_selfpatch, loss_c_item, loss_p_item = self.dino_loss(student_output, teacher_output, epoch=None)
             losses['selfpatch_loss'] = loss_selfpatch * 0.1
 
         B, M, C = x_rec.shape

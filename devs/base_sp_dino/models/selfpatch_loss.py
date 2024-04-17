@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
-from helper import trunc_normal_
+from models.helper import trunc_normal_
 
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
@@ -258,8 +258,8 @@ class DINOLoss(nn.Module):
         c_loss /= n_loss_terms
         p_loss /= m_loss_terms
 
-        self.update_center(torch.cat(teacher_cls), it)
-        self.update_patch_center(teacher_loc, it)
+        self.update_center(torch.cat(teacher_cls))
+        self.update_patch_center(teacher_loc)
         return (c_loss + p_loss*0.1), c_loss.item(), p_loss.item()
 
 
