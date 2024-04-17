@@ -261,7 +261,7 @@ class ReCon(nn.Module):
         self.self_patch = config.self_patch
 
         # --- For self patch loss:
-        self.sp_aggregat = SelfPatchHead(in_dim=384, num_heads=6)
+        self.sp_aggregate = SelfPatchHead(in_dim=384, num_heads=6)
 
         # TODO: The dimensions need further adjust
         self.dino_c_project = DINOHead(in_dim=384, out_dim=384, 
@@ -318,14 +318,14 @@ class ReCon(nn.Module):
         x_rec, q_patch_feats = self.MAE_decoder(x_full, pos_full, N)
 
         # SelfPatch aggregation head for student
-        agg_student = self.sp_aggregat(x_vis, loc = False) # [bs, vis + 1, 384]
+        agg_student = self.sp_aggregate(x_vis, loc = False) # [bs, vis + 1, 384]
 
         # Dino cls & patch projection head for student
  
         student_output = [self.dino_c_project(agg_student[:, :1]), 
                           self.dino_p_project(agg_student[:, 1:])]
 
-        # --- Geometrically Coherent Loss
+        # --- Geometrically Coherent Loss with self-patch pretext 
         # Set all the neighborhoo and center to the encoder and the decoder
         if self.self_patch:
             with torch.no_grad():
