@@ -133,7 +133,7 @@ def run_net(args, config, train_writer=None, val_writer=None):
             assert points.size(1) == npoints
             points = train_transforms(points)
             img = img.cuda()
-            loss = base_model(points, img, text)
+            loss = base_model(points, img, text, epoch)
             try:
                 loss.backward()
                 # print("Using one GPU")

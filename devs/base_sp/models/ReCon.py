@@ -323,10 +323,10 @@ class ReCon(nn.Module):
             losses['selfpatch_loss'] = loss_selfpatch
 
         B, M, C = x_rec.shape
-        rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
+        # rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
 
-        gt_points = neighborhood[mask].reshape(B * M, -1, 3)
-        losses['mdm'] = self.loss_func(rebuild_points, gt_points)
+        # gt_points = neighborhood[mask].reshape(B * M, -1, 3)
+        # losses['mdm'] = self.loss_func(rebuild_points, gt_points)
 
         if self.csc_img:
             img_feature = self.img_encoder(img)
