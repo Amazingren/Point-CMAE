@@ -6,7 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
-from models.helper import trunc_normal_
+from helper import trunc_normal_
+# from models.helper import trunc_normal_
 
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
@@ -236,7 +237,7 @@ class DINOLoss(nn.Module):
         p_loss = 0
         n_loss_terms = 0
         m_loss_terms = 0
-        for iq in range(len(teacher_cls)): # actually, just range(2)
+        for iq in range(len(teacher_cls)): # actually, just in range(2)
             q_cls = F.softmax((teacher_cls[iq] - self.center)/ temp, dim=-1).detach()
             q_pat = F.softmax((teacher_loc[iq]) - self.patch_center/ temp, dim=-1).detach()
             p_pat = student_loc[iq]
@@ -255,7 +256,7 @@ class DINOLoss(nn.Module):
         p_loss /= m_loss_terms
 
         self.update_center(torch.cat(teacher_cls))
-        self.update_patch_center(teacher_loc)
+        self.update_patch_center(teacher_loc, self.center)
         return (c_loss + p_loss*0.1), c_loss.item(), p_loss.item()
 
 
@@ -265,14 +266,14 @@ class DINOLoss(nn.Module):
         Update center used for teacher output.
         """
         batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
-        dist.all_reduce(batch_center)
-        batch_center = batch_center / (len(teacher_output) * dist.get_world_size())
+        # dist.all_reduce(batch_center)
+        batch_center = batch_center / len(teacher_output)
 
         # ema update
         self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
 
     @torch.no_grad()
-    def update_patch_center(self, teacher_output):
+    def update_patch_center(self, teacher_output, batch_center):
         self.patch_center = self.patch_center * self.center_momentum + batch_center * (1 - self.center_momentum)
     
 
@@ -282,18 +283,25 @@ if __name__ == "__main__":
     # pass
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    fake_inp = torch.rand(128, 64, 384).to(device)
+    # fake_inp = torch.rand(128, 64, 384).to(device)
 
-    test_tensor_c = fake_inp[:, 0:1, :].chunk(2)
-    test_tensor_p = fake_inp.chunk(2)
+    # test_tensor_c = fake_inp[:, 0:1, :].chunk(2)
+    # test_tensor_p = fake_inp.chunk(2)
 
-    aggreation_head = SelfPatchHead(in_dim=384, num_heads=6).to(device)
-    out_agg = aggreation_head(fake_inp)
+    # aggreation_head = SelfPatchHead(in_dim=384, num_heads=6).to(device)
+    # out_agg = aggreation_head(fake_inp)
 
-    projection_head = DINOHead(in_dim=384, out_dim=384, 
-                               use_bn=False, norm_last_layer=True, 
-                               nlayers=3, hidden_dim=2048, bottleneck_dim=256).to(device) 
+    # projection_head = DINOHead(in_dim=384, out_dim=384, 
+    #                            use_bn=False, norm_last_layer=True, 
+    #                            nlayers=3, hidden_dim=2048, bottleneck_dim=256).to(device) 
+    # out_proj = projection_head(out_agg)
+    # print(out_proj.shape)
     
-    out_proj = projection_head(out_agg)
+    inp_a = torch.rand(128, 64, 384).to(device)
+    inp_b = torch.rand(128, 64, 384).to(device)
+    dino_loss = DINOLoss(out_dim=384, out_dim_selfpatch=384).to(device) 
+    loss = dino_loss(inp_a, inp_a, 40)
+    print(loss)
+    0/0
+    
 
-    print(out_proj.shape)
