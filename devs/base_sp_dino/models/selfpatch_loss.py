@@ -6,9 +6,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
-from helper import trunc_normal_
-# from models.helper import trunc_normal_
-
+# from helper import trunc_normal_ # For debug
+from models.helper import trunc_normal_
+import pdb
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
     if drop_prob == 0. or not training:
@@ -109,7 +109,7 @@ class LayerScale_Block_CA(nn.Module):
         self.mlp = Mlp_block(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
     def forward(self, x, x_cls, attention=False, mask=None):
-        u = torch.cat((x_cls,x),dim=1)
+        u = torch.cat([x_cls,x],dim=1)
         if attention:
             u_, cls_attn = self.attn(self.norm1(u), attention=True)
             return cls_attn
@@ -143,24 +143,11 @@ class SelfPatchHead(nn.Module):
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x, loc=False):
+    def forward(self, x):
         cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)
-        if loc: # only for teacher
-            x_loc = x
-            for i, blk in enumerate(self.cls_block):
-                if i ==0:
-                    glo_tokens = blk(x, cls_tokens)
-                    loc_tokens = blk(x_loc, cls_tokens.repeat(x.shape[1],1,1))
-                else:
-                    glo_tokens = blk(x, glo_tokens)
-                    loc_tokens = blk(x_loc, loc_tokens)
-            loc_tokens = loc_tokens.view(x.shape)
-            x = self.norm(torch.cat([glo_tokens, loc_tokens], dim=1))
-
-        else: # only for student
-            for i, blk in enumerate(self.cls_blocks):
-                cls_tokens = blk(x, cls_tokens)
-            x = self.norm(torch.cat([cls_tokens, x], dim=1))
+        for i, blk in enumerate(self.cls_blocks):
+            cls_tokens = blk(x, cls_tokens)
+        x = self.norm(torch.cat([cls_tokens, x], dim=1))
 
         return x
     
@@ -225,8 +212,9 @@ class DINOLoss(nn.Module):
         Cross-entropy between softmax outputs of the teacher and student networks.
         """
         # teacher centering and sharpening
-        student_cls = student_output[0].chunk(2) # ([bs/2, 1, 384], [bs/2, 1, 384])
-        student_loc = student_output[1].chunk(2) # ([bs/2, 64, 384], [bs/2, 64, 384])
+
+        student_cls = student_output[0].chunk(2) # [64, 1, 384] * 2
+        student_loc = student_output[1].chunk(2) # [64, 64, 384] * 2
 
         teacher_cls = teacher_output[0].chunk(2) 
         teacher_loc = teacher_output[1].chunk(2)
@@ -239,18 +227,21 @@ class DINOLoss(nn.Module):
         m_loss_terms = 0
         for iq in range(len(teacher_cls)): # actually, just in range(2)
             q_cls = F.softmax((teacher_cls[iq] - self.center)/ temp, dim=-1).detach()
-            q_pat = F.softmax((teacher_loc[iq]) - self.patch_center/ temp, dim=-1).detach()
-            p_pat = student_loc[iq]
-
-            # patch_loss
-            patch_loss = torch.sum(-q_pat * F.log_softmax(p_pat / self.student_temp, dim=-1), dim = -1)
-            p_loss += patch_loss.mean()
-            m_loss_terms += 1
-
-            # cls loss
-            cls_loss = torch.sum(-q_cls * F.log_softmax(student_cls[iq] / self.student_temp, dim=-1), dim=-1)
-            c_loss += cls_loss.mean()
-            n_loss_terms += 1
+            for v in range(len(student_cls)):
+                if v == iq:
+                    q_pat = F.softmax((teacher_loc[iq]) - self.patch_center/ temp, dim=-1).detach()
+                    p_pat = student_loc[v]
+                    patch_loss = torch.sum(-q_pat * F.log_softmax(p_pat / self.student_temp, dim=-1), dim = -1)
+                    # patch_loss
+                    p_loss += patch_loss.mean()
+                    m_loss_terms += 1
+                else:
+                    if iq > 1:
+                        continue
+                    # cls loss
+                    cls_loss = torch.sum(-q_cls * F.log_softmax(student_cls[v] / self.student_temp, dim=-1), dim=-1)
+                    c_loss += cls_loss.mean()
+                    n_loss_terms += 1
 
         c_loss /= n_loss_terms
         p_loss /= m_loss_terms
@@ -304,4 +295,59 @@ if __name__ == "__main__":
     print(loss)
     0/0
     
+
+# class DINOLoss(nn.Module):
+#     def __init__(self, out_dim, ncrops, warmup_teacher_temp, teacher_temp,
+#                  warmup_teacher_temp_epochs, nepochs, student_temp=0.1,
+#                  center_momentum=0.9):
+#         super().__init__()
+#         self.student_temp = student_temp
+#         self.center_momentum = center_momentum
+#         self.ncrops = ncrops
+#         self.register_buffer("center", torch.zeros(1, out_dim))
+#         # we apply a warm up for the teacher temperature because
+#         # a too high temperature makes the training instable at the beginning
+#         self.teacher_temp_schedule = np.concatenate((
+#             np.linspace(warmup_teacher_temp,
+#                         teacher_temp, warmup_teacher_temp_epochs),
+#             np.ones(nepochs - warmup_teacher_temp_epochs) * teacher_temp
+#         ))
+
+#     def forward(self, student_output, teacher_output, epoch):
+#         """
+#         Cross-entropy between softmax outputs of the teacher and student networks.
+#         """
+#         student_out = student_output / self.student_temp
+#         student_out = student_out.chunk(self.ncrops)
+
+#         # teacher centering and sharpening
+#         temp = self.teacher_temp_schedule[epoch]
+#         teacher_out = F.softmax((teacher_output - self.center) / temp, dim=-1)
+#         teacher_out = teacher_out.detach().chunk(2)
+
+#         total_loss = 0
+#         n_loss_terms = 0
+#         for iq, q in enumerate(teacher_out):
+#             for v in range(len(student_out)):
+#                 if v == iq:
+#                     # we skip cases where student and teacher operate on the same view
+#                     continue
+#                 loss = torch.sum(-q * F.log_softmax(student_out[v], dim=-1), dim=-1)
+#                 total_loss += loss.mean()
+#                 n_loss_terms += 1
+#         total_loss /= n_loss_terms
+#         self.update_center(teacher_output)
+#         return total_loss
+
+#     @torch.no_grad()
+#     def update_center(self, teacher_output):
+#         """
+#         Update center used for teacher output.
+#         """
+#         batch_center = torch.sum(teacher_output, dim=0, keepdim=True)
+#         dist.all_reduce(batch_center)
+#         batch_center = batch_center / (len(teacher_output) * dist.get_world_size())
+
+#         # ema update
+#         self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
 

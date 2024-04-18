@@ -32,24 +32,20 @@ model : {
   num_group: 64,
   loss: cdl2,
   transformer_config: {
-    mask_ratio: 0,
+    mask_ratio: 0.6,
     mask_type: 'rand',
-    trans_dim: 384,
-    encoder_dims: 384,
+    trans_dim: 192,
+    encoder_dims: 192,
     depth: 12,
     drop_path_rate: 0.1,
-    num_heads: 6,
+    num_heads: 3,
     decoder_depth: 4,
-    decoder_num_heads: 6,
+    decoder_num_heads: 3,
   },
-  # img_encoder: 'vit_base_patch16_224_in21k',
-  # # img_encoder: 'ViT-B/32', # for Zero-Shot pretraining setting
-  # text_encoder: 'ViT-B/32',
-  # self_contrastive: FALSE,
-  img_encoder: False,
-  text_encoder: False,
-  self_contrastive: False,
-  self_patch: False
+  img_encoder: 'vit_base_patch16_224_in21k',
+  # img_encoder: 'ViT-B/32', # for Zero-Shot pretraining setting
+  text_encoder: 'ViT-B/32',
+  self_contrastive: FALSE,
   }
 
 npoints: 1024
