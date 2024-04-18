@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributed as dist
 import numpy as np
 from .build import MODELS
 from utils.logger import *
@@ -13,6 +12,7 @@ from models.CrossModal import VisionTransformer as ImageEncoder
 from timm.models.layers import trunc_normal_
 
 from models.selfpatch_loss import SelfPatchHead, DINOHead, DINOLoss
+import pdb
 
 # Pretrain model
 class MaskTransformer(nn.Module):
@@ -259,20 +259,20 @@ class ReCon(nn.Module):
             self.contrastive_head = ContrastiveHead(temperature=0.1)
 
         self.self_patch = config.self_patch
-
         # --- For self patch loss:
         self.sp_aggregate = SelfPatchHead(in_dim=384, num_heads=6)
 
         self.dino_c_project = DINOHead(in_dim=384, out_dim=384, 
                                use_bn=False, norm_last_layer=True, 
-                               nlayers=3, hidden_dim=1024, bottleneck_dim=256
+                               nlayers=3, hidden_dim=512, bottleneck_dim=256
         )
         self.dino_p_project = DINOHead(in_dim=384, out_dim=384, 
                                use_bn=False, norm_last_layer=True, 
-                               nlayers=3, hidden_dim=1024, bottleneck_dim=256
+                               nlayers=3, hidden_dim=512, bottleneck_dim=256
         )
         
         self.dino_loss = DINOLoss(out_dim=384, out_dim_selfpatch=384)
+
 
     def build_loss_func(self, loss_type):
         if loss_type == "cdl1":
@@ -291,7 +291,7 @@ class ReCon(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def forward(self, pts, img, text, **kwargs):
+    def forward(self, pts, img, text, epoch, **kwargs):
 
         losses = {}
         neighborhood, center = self.group_divider(pts)
@@ -309,7 +309,7 @@ class ReCon(nn.Module):
 
         x_rec, q_patch_feats = self.MAE_decoder(x_full, pos_full, N)
 
-        # --- Geometrically Coherent Loss with self-patch pretext 
+        # --- Geometrically Coherent Loss
         # Set all the neighborhoo and center to the encoder and the decoder
         if self.self_patch:
             # SelfPatch aggregation head for student
@@ -320,19 +320,21 @@ class ReCon(nn.Module):
                             self.dino_p_project(agg_student[:, 1:])]
 
             with torch.no_grad():
-                cls_token_all, _, _, k_patch_feats, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
+                _, _, _, k_patch_feats, _ = self.MAE_encoder(pts, neighborhood, center, noaug=True)
 
                 # Step1: Update the encoder's patch feats for the teacher
                 k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
 
                 # 1.1: consturct the local patch mask
                 cdist = torch.cdist(center, center)
-                radius = torch.topk(cdist, k=2, dim=-1, largest=False)[0][:, 1].mean(dim=-1, keepdim=True)
+
+                radius = torch.topk(cdist, k=2, dim=-1, largest=False)[0][:, :, 1:].mean(dim=-1, keepdim=True)
+                
                 feats_dis = torch.cdist(k_patch_feats_norm, k_patch_feats_norm)
-                mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(3)/2)).to(cdist)
+                mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(2)/3)).to(cdist)
 
                 # 1.2 construct the neighbor selection weight
-                global_weight = torch.exp(-cdist / 1.0) * (2 - feats_dis)
+                global_weight = torch.exp(-cdist / 0.05) * torch.exp(-feats_dis / 0.04)
                 # global_weight = (2 - feats_dis)
                 neighbor_weight = (global_weight * mask_sp / (
                 (global_weight * mask_sp).sum(dim=-1, keepdim=True).clip(min=1e-5))).detach() # [bs, 64, 64]
@@ -349,14 +351,16 @@ class ReCon(nn.Module):
                 teacher_output = [self.dino_c_project(agg_teacher[:, :1]), 
                                   self.dino_p_project(agg_teacher[:, 1:])]
 
-            # loss_selfpatch, loss_c_item, loss_p_item = self.dino_loss(student_output, teacher_output, epoch)
-            # losses['selfpatch_loss'] = loss_selfpatch
 
+            loss_selfpatch, loss_c_item, loss_p_item = self.dino_loss(student_output, teacher_output, epoch)
+            losses['selfpatch_loss'] = loss_selfpatch       
+
+        # Reconstruction MAE Loss
         B, M, C = x_rec.shape
-        rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
+        # rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
 
-        gt_points = neighborhood[mask].reshape(B * M, -1, 3)
-        losses['mdm'] = self.loss_func(rebuild_points, gt_points)
+        # gt_points = neighborhood[mask].reshape(B * M, -1, 3)
+        # losses['mdm'] = self.loss_func(rebuild_points, gt_points)
 
         if self.csc_img:
             img_feature = self.img_encoder(img)

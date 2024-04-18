@@ -49,7 +49,7 @@ model : {
   img_encoder: False,
   text_encoder: False,
   self_contrastive: False,
-  self_patch: False
+  self_patch: True
   }
 
 npoints: 1024

@@ -303,11 +303,11 @@ class ReCon(nn.Module):
                 k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
 
                 cdist = torch.cdist(center, center)
-                radius = torch.topk(cdist, k=2, dim=-1, largest=False)[0][:, 1].mean(dim=-1, keepdim=True)
+                radius = torch.topk(cdist, k=3, dim=-1, largest=False)[0][:, :, 1:].mean(dim=-1, keepdim=True)
                 feats_dis = torch.cdist(k_patch_feats_norm, k_patch_feats_norm)
-                mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(3)/2)).to(cdist)
+                mask_sp = (cdist < radius / (np.sqrt(2)/3)).to(cdist)
 
-                global_weight = torch.exp(-cdist / 1.0) * (2 - feats_dis)
+                global_weight = torch.exp(-cdist / 0.05) * torch.exp(-feats_dis / 0.04)
                 neighbor_weight = (global_weight * mask_sp / (
                 (global_weight * mask_sp).sum(dim=-1, keepdim=True).clip(min=1e-5))).detach()
 
@@ -319,10 +319,8 @@ class ReCon(nn.Module):
             losses['selfpatch_loss'] = -torch.mean(
                     torch.sum(mask_sp * global_weight.detach() * F.log_softmax(gamma_log, dim=1), dim=1))
 
-
         B, M, C = x_rec.shape
         # rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
-
         # gt_points = neighborhood[mask].reshape(B * M, -1, 3)
         # losses['mdm'] = self.loss_func(rebuild_points, gt_points)
 

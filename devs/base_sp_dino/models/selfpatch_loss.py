@@ -229,19 +229,20 @@ class DINOLoss(nn.Module):
             q_cls = F.softmax((teacher_cls[iq] - self.center)/ temp, dim=-1).detach()
             for v in range(len(student_cls)):
                 if v == iq:
-                    q_pat = F.softmax((teacher_loc[iq]) - self.patch_center/ temp, dim=-1).detach()
-                    p_pat = student_loc[v]
-                    patch_loss = torch.sum(-q_pat * F.log_softmax(p_pat / self.student_temp, dim=-1), dim = -1)
-                    # patch_loss
-                    p_loss += patch_loss.mean()
-                    m_loss_terms += 1
-                else:
-                    if iq > 1:
-                        continue
-                    # cls loss
-                    cls_loss = torch.sum(-q_cls * F.log_softmax(student_cls[v] / self.student_temp, dim=-1), dim=-1)
-                    c_loss += cls_loss.mean()
-                    n_loss_terms += 1
+                    # we skip cases where student and teacher operate on the same view
+                    continue
+                q_pat = F.softmax((teacher_loc[iq]) - self.patch_center/ temp, dim=-1).detach()
+                p_pat = student_loc[v]
+
+                # patch_loss
+                patch_loss = torch.sum(-q_pat * F.log_softmax(p_pat / self.student_temp, dim=-1), dim = -1)
+                p_loss += patch_loss.mean()
+                m_loss_terms += 1
+
+                # cls loss
+                cls_loss = torch.sum(-q_cls * F.log_softmax(student_cls[v] / self.student_temp, dim=-1), dim=-1)
+                c_loss += cls_loss.mean()
+                n_loss_terms += 1
 
         c_loss /= n_loss_terms
         p_loss /= m_loss_terms
