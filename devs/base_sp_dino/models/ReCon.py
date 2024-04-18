@@ -328,10 +328,10 @@ class ReCon(nn.Module):
                 # 1.1: consturct the local patch mask
                 cdist = torch.cdist(center, center)
 
-                radius = torch.topk(cdist, k=2, dim=-1, largest=False)[0][:, :, 1:].mean(dim=-1, keepdim=True)
+                radius = torch.topk(cdist, k=3, dim=-1, largest=False)[0][:, :, 1:].mean(dim=-1, keepdim=True)
                 
                 feats_dis = torch.cdist(k_patch_feats_norm, k_patch_feats_norm)
-                mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(2)/3)).to(cdist)
+                mask_sp = (cdist < radius / (np.sqrt(2)/3)).to(cdist)
 
                 # 1.2 construct the neighbor selection weight
                 global_weight = torch.exp(-cdist / 0.05) * torch.exp(-feats_dis / 0.04)
@@ -352,6 +352,7 @@ class ReCon(nn.Module):
                                   self.dino_p_project(agg_teacher[:, 1:])]
 
 
+            # TODO: The dino loss need to
             loss_selfpatch, loss_c_item, loss_p_item = self.dino_loss(student_output, teacher_output, epoch)
             losses['selfpatch_loss'] = loss_selfpatch       
 
