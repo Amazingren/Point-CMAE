@@ -331,7 +331,7 @@ class ReCon(nn.Module):
                 radius = torch.topk(cdist, k=2, dim=-1, largest=False)[0][:, :, 1:].mean(dim=-1, keepdim=True)
                 
                 feats_dis = torch.cdist(k_patch_feats_norm, k_patch_feats_norm)
-                mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(2)/3)).to(pts)
+                mask_sp = (cdist < radius.unsqueeze(-1) / (np.sqrt(2)/3)).to(cdist)
 
                 # 1.2 construct the neighbor selection weight
                 global_weight = torch.exp(-cdist / 0.05) * torch.exp(-feats_dis / 0.04)
