@@ -303,7 +303,6 @@ class ReCon(nn.Module):
                 
                 k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
                 
-                # Geometrically
                 cdist = torch.cdist(center, center) 
                 radius = torch.topk(cdist, k=4, dim=-1, largest=False)[0][:,:,1:].mean(dim=-1, keepdim=True)
                 mask_sp = (cdist < radius / (torch.sqrt(torch.tensor(3)/2))).to(cdist)
@@ -322,13 +321,13 @@ class ReCon(nn.Module):
 
             loss_selfpatch = torch.sum(-k_neighbor_feats.detach() * F.log_softmax(q_patch_predict / 0.1, dim=-1), dim=-1)
 
-            losses['selfpatch_loss'] = loss_selfpatch.mean()
+            # losses['selfpatch_loss'] = loss_selfpatch.mean()
 
         # -- Reconstruction (MAE) Loss ---
         B, M, C = x_rec.shape
-        # rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
-        # gt_points = neighborhood[mask].reshape(B * M, -1, 3)
-        # losses['mdm'] = self.loss_func(rebuild_points, gt_points)
+        rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
+        gt_points = neighborhood[mask].reshape(B * M, -1, 3)
+        losses['mdm'] = self.loss_func(rebuild_points, gt_points)
 
         if self.csc_img:
             img_feature = self.img_encoder(img)
