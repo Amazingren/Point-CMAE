@@ -321,7 +321,6 @@ class ReCon(nn.Module):
 
             losses['selfpatch_loss'] = loss_selfpatch.mean()
 
-
         B, M, C = x_rec.shape
         # rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
         # gt_points = neighborhood[mask].reshape(B * M, -1, 3)
