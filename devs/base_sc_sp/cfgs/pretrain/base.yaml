@@ -48,7 +48,7 @@ model : {
   # self_contrastive: FALSE,
   img_encoder: False,
   text_encoder: False,
-  self_contrastive: True,
+  self_contrastive: False,
   self_patch: True
   }
 

@@ -11,6 +11,7 @@ from models.CrossModal import TextTransformer as TextEncoder
 from models.CrossModal import VisionTransformer as ImageEncoder
 from timm.models.layers import trunc_normal_
 
+import pdb
 
 # Pretrain model
 class MaskTransformer(nn.Module):
@@ -302,29 +303,32 @@ class ReCon(nn.Module):
                 
                 k_patch_feats_norm = F.normalize(k_patch_feats, dim=-1)
                 
-                cdist = torch.cdist(center, center)
-                radius = torch.topk(cdist, k=3, dim=-1, largest=False)[0][:,:,1:].mean(dim=-1, keepdim=True)
+                # Geometrically
+                cdist = torch.cdist(center, center) 
+                radius = torch.topk(cdist, k=4, dim=-1, largest=False)[0][:,:,1:].mean(dim=-1, keepdim=True)
+                mask_sp = (cdist < radius / (torch.sqrt(torch.tensor(3)/2))).to(cdist)
+
                 feats_dis = torch.cdist(k_patch_feats_norm, k_patch_feats_norm)
-                mask_sp = (cdist < radius / (np.sqrt(2)/3)).to(cdist)
+                global_weight = torch.exp(-cdist / 0.5) * torch.exp(-feats_dis / 0.5)
 
-                global_weight = torch.exp(-cdist / 0.05) * torch.exp(-feats_dis / 0.04)
                 neighbor_weight = (global_weight * mask_sp / (
-                (global_weight * mask_sp).sum(dim=-1, keepdim=True).clip(min=1e-5))).detach()
+                (global_weight * mask_sp).sum(dim=-1, keepdim=True).clamp(min=1e-5))).detach()
 
-                new_feats = torch.einsum('bmk,bmd->bkd', neighbor_weight, k_patch_feats)
-                new_feats = F.normalize(new_feats, dim=-1)
+                # k_neighbor_feats = neighbor_weight * k_patch_feats
+                k_neighbor_feats = torch.einsum('bnk,bnd->bnd', neighbor_weight, k_patch_feats)
 
             q_patch_predict = F.normalize(q_patch_feats, dim=-1)
-            gamma_log = torch.einsum('bmd,bnd->bmn', q_patch_predict, new_feats)
-            loss_selfpatch = -torch.mean(
-                torch.sum(mask_sp * global_weight.detach() * F.log_softmax(gamma_log, dim=1), dim=1))
-            losses['selfpatch_loss'] = loss_selfpatch
+            k_neighbor_feats = F.softmax(k_neighbor_feats / 0.1, dim=-1)
+
+            loss_selfpatch = torch.sum(-k_neighbor_feats.detach() * F.log_softmax(q_patch_predict / 0.1, dim=-1), dim=-1)
+
+            losses['selfpatch_loss'] = loss_selfpatch.mean()
 
         # -- Reconstruction (MAE) Loss ---
         B, M, C = x_rec.shape
-        rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
-        gt_points = neighborhood[mask].reshape(B * M, -1, 3)
-        losses['mdm'] = self.loss_func(rebuild_points, gt_points)
+        # rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
+        # gt_points = neighborhood[mask].reshape(B * M, -1, 3)
+        # losses['mdm'] = self.loss_func(rebuild_points, gt_points)
 
         if self.csc_img:
             img_feature = self.img_encoder(img)
