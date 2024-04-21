@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=7 python main.py \
+CUDA_VISIBLE_DEVICES=4 python main.py \
     --test \
     --config cfgs/full/finetune_scan_hardest.yaml \
     --exp_name scan_hardest_sp \
