@@ -225,11 +225,9 @@ class ReCon(nn.Module):
         self.build_loss_func(self.loss)
 
         self.linear_proj = nn.Sequential(
-            nn.Linear(384, 258),
-            nn.BatchNorm1d(256),
-            nn.ReLU(inplace=True),
+            nn.Linear(384, 256),
+            nn.GELU(),
             nn.Linear(256, 128),
-            nn.BatchNorm1d(128)
         )
 
         # cross model contrastive
