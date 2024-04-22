@@ -326,7 +326,6 @@ class ReCon(nn.Module):
 
             q_patch_predict = self.linear_proj(q_patch_feats)
             q_patch_predict = F.softmax(q_patch_predict / 0.1, dim=-1)
-
             k_patch_predict = F.softmax(k_patch_predict / 0.1, dim=-1)
 
             loss_selfpatch = torch.sum(-k_patch_predict.detach() * F.log_softmax(q_patch_predict / 0.1, dim=-1), dim=-1)
