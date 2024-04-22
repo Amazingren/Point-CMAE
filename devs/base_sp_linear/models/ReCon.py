@@ -224,6 +224,14 @@ class ReCon(nn.Module):
         # loss
         self.build_loss_func(self.loss)
 
+        self.linear_proj = nn.Sequential(
+            nn.Linear(384, 258),
+            nn.BatchNorm1d(256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128)
+        )
+
         # cross model contrastive
         self.csc_loss = torch.nn.SmoothL1Loss()
         self.csc_img = True if config.img_encoder else False
@@ -314,11 +322,14 @@ class ReCon(nn.Module):
 
                 # k_neighbor_feats = neighbor_weight * k_patch_feats
                 k_neighbor_feats = torch.einsum('bnk,bnd->bnd', neighbor_weight, k_patch_feats)
+                k_patch_predict = self.linear_proj(k_neighbor_feats)
 
-            q_patch_predict = F.normalize(q_patch_feats, dim=-1)
-            k_neighbor_feats = F.softmax(k_neighbor_feats / 0.1, dim=-1)
+            q_patch_predict = self.linear_proj(q_patch_feats)
+            q_patch_predict = F.softmax(q_patch_predict / 0.1, dim=-1)
 
-            loss_selfpatch = torch.sum(-k_neighbor_feats.detach() * F.log_softmax(q_patch_predict / 0.1, dim=-1), dim=-1)
+            k_patch_predict = F.softmax(k_patch_predict / 0.1, dim=-1)
+
+            loss_selfpatch = torch.sum(-k_patch_predict.detach() * F.log_softmax(q_patch_predict / 0.1, dim=-1), dim=-1)
 
             losses['selfpatch_loss'] = loss_selfpatch.mean()
 

@@ -192,7 +192,7 @@ def run_net(args, config, train_writer=None, val_writer=None):
                 best_metrics = metrics
                 builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, 'ckpt-best', args, logger=logger)
 
-        if epoch % 25 == 0 and epoch >= 250:
+        if epoch % 25 == 0 and epoch >= 200:
             builder.save_pretrain_model(base_model, optimizer, epoch, metrics, best_metrics, f'ckpt-epoch-{epoch:03d}',
                                     args, logger=logger)
         # if (config.max_epoch - epoch) < 10:
