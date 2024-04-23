@@ -315,7 +315,6 @@ class ReCon(nn.Module):
                 k_neighbor_feats = torch.einsum('bnk,bnd->bnd', neighbor_weight, k_patch_feats)
 
             k_neighbor_feats = F.softmax(k_neighbor_feats / 0.1, dim=-1)
-
             loss_selfpatch = torch.sum(-k_neighbor_feats.detach() * F.log_softmax(q_patch_feats / 0.1, dim=-1), dim=-1)
 
             losses['selfpatch_loss'] = loss_selfpatch.mean()
