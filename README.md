@@ -25,7 +25,10 @@ This is a baseline code repo. for 3D representation learning.
 
 - If we use the liner function for the student patch feature, also the recons_sp setting, the loss will be stop-decrease around 8, but more stable
 
-- If 
+- For the sponly setting, if we remove the normalization, we'd better not to set mask_ratio too high, the loss will becomes to 0 after just several epochs. It's not reasonable!!!也就是这里产生了提督消失的问题了我觉得
+
+- 那么对于上面reconstruction的时候，有没有可能也有了提督消失的问题呢？
+
 
 
 
