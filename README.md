@@ -20,6 +20,12 @@ This is a baseline code repo. for 3D representation learning.
 - Use data aumengation mentioned in [ACT](https://github.com/RunpeiDong/ACT) can largely improve the finetune results. But our onw results are still a bit lower than what we expected.
 
 
+### Some Experimental findings:
+- If we use the normlization (for the student patch feature) for the recons_sp setting, the loss will be stop-decrease around 17.1, however, if we remove the the norm function, the loss will be stop-decrease around 7, at a slight cost of the unstable training.
+
+- If we use the liner function for the student patch feature, also the recons_sp setting, the loss will be stop-decrease around 8, but more stable
+
+- If 
 
 
 
