@@ -27,7 +27,8 @@ This is a baseline code repo. for 3D representation learning.
 
 - For the sponly setting, if we remove the normalization, we'd better not to set mask_ratio too high, the loss will becomes to 0 after just several epochs. It's not reasonable!!!也就是这里产生了提督消失的问题了我觉得
 
-- 那么对于上面reconstruction的时候，有没有可能也有了提督消失的问题呢？
+- 那么对于上面reconstruction的时候，有没有可能也有了梯度消失的问题呢？
+- 感觉对于student的norm是一个很有意义或者说值得思考的地方，因为在sponly的实验中的结论是：如果不对p_patch_feats进行norm，那么梯度消失的出现是和mask_ratio无关的
 
 
 
