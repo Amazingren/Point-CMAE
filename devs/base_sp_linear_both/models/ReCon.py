@@ -227,7 +227,7 @@ class ReCon(nn.Module):
         self.linear_proj = nn.Sequential(
             nn.Linear(384, 256),
             nn.GELU(),
-            nn.Linear(256, 128),
+            nn.Linear(256, 256),
         )
 
         # cross model contrastive
@@ -323,9 +323,9 @@ class ReCon(nn.Module):
                 k_patch_predict = self.linear_proj(k_neighbor_feats)
 
             q_patch_predict = self.linear_proj(q_patch_feats)
-            q_patch_predict = F.softmax(q_patch_predict / 0.1, dim=-1)
-            k_patch_predict = F.softmax(k_patch_predict / 0.1, dim=-1)
+            q_patch_predict = F.normalize(q_patch_predict, dim=-1)
 
+            k_patch_predict = F.softmax(k_patch_predict / 0.1, dim=-1)
             loss_selfpatch = torch.sum(-k_patch_predict.detach() * F.log_softmax(q_patch_predict / 0.1, dim=-1), dim=-1)
 
             losses['selfpatch_loss'] = loss_selfpatch.mean()
