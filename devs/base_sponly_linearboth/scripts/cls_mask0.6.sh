@@ -1,8 +1,8 @@
-CUDA_VISIBLE_DEVICES=2 python main.py \
+CUDA_VISIBLE_DEVICES=6 python main.py \
     --config cfgs/full/finetune_scan_hardest.yaml \
     --finetune_model \
-    --exp_name scan_hardest_sponly_mask0.6_ep250 \
-    --ckpts experiments/base_mask0.6/pretrain/dev_sponly_m0.6/ckpt-epoch-250.pth \
+    --exp_name scan_hardest_sponly_mask0.6_linearboth_ep275 \
+    --ckpts experiments/base/pretrain/dev_sponly_linearboth/ckpt-epoch-275.pth \
     --seed 0
 
 # CUDA_VISIBLE_DEVICES=$1 python main.py --config cfgs/full/finetune_scan_hardest.yaml \
