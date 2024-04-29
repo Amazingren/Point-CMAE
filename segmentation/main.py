@@ -141,6 +141,9 @@ def main(args):
             test_metrics['accuracy'], test_metrics['class_avg_iou'], test_metrics['inctance_avg_iou']))
         return
 
+    if args.ckpts == "None":
+        args.ckpts = None
+
     if args.ckpts is not None:
         classifier.load_model_from_ckpt(args.ckpts)
 
