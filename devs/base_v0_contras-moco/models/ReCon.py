@@ -198,7 +198,7 @@ class ReCon(nn.Module):
             param_k.requires_grad = False  # not update by gradient
 
         self.m = 0.999
-        self.T = 0.07
+        self.T = 0.2
         self.K = 16384
 
         self.group_size = config.group_size
