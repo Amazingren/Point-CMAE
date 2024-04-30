@@ -1,8 +1,8 @@
-CUDA_VISIBLE_DEVICES=5 python main.py \
+CUDA_VISIBLE_DEVICES=7 python main.py \
     --config cfgs/full/finetune_scan_hardest.yaml \
     --finetune_model \
-    --exp_name scan_hardest_v0_contras-moco_ep100 \
-    --ckpts experiments/base/pretrain/base_v0_contras_moco/ckpt-epoch-100.pth\
+    --exp_name scan_hardest_sp_ep275 \
+    --ckpts experiments/base/pretrain/base_sp/ckpt-epoch-275.pth \
     --seed 0
 
 # CUDA_VISIBLE_DEVICES=$1 python main.py --config cfgs/full/finetune_scan_hardest.yaml \
