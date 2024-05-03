@@ -189,17 +189,24 @@ class ReCon(nn.Module):
         print_log(f'[ReCon] ', logger='ReCon')
         self.config = config
         self.trans_dim = config.transformer_config.trans_dim
+        self.m = 0.999
+        self.T = 0.2
+        self.K = 16384
+
         self.MAE_encoder = MaskTransformer(config)
+        self.projector = MoBYMLP(num_layers=2)
+        self.predictor = MoBYMLP(in_dim=256, num_layers=2)
 
         # The teacher branch encoder
         self.MAE_encoder_k = MaskTransformer(config)
+        self.projector_k = MoBYMLP(num_layers=2)
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
             param_k.requires_grad = False  # not update by gradient
 
-        self.m = 0.999
-        self.T = 0.2
-        self.K = 16384
+        for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
+            param_k.data.copy_(param_q.data)  # initialize
+            param_k.requires_grad = False  # not update by gradient
 
         self.group_size = config.group_size
         self.num_group = config.num_group
@@ -241,10 +248,6 @@ class ReCon(nn.Module):
         self.queue = F.normalize(self.queue, dim=0)
         self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
 
-        self.projector = MoBYMLP(num_layers=2)
-        self.projector_k = MoBYMLP(num_layers=2)
-        self.predictor = MoBYMLP(num_layers=2)
-
         # cross model contrastive
         self.csc_loss = torch.nn.SmoothL1Loss()
         self.csc_img = True if config.img_encoder else False
@@ -284,15 +287,11 @@ class ReCon(nn.Module):
         """
         Momentum update of the key encoder
         """
-        _contrast_momentum = 1. - (1. - self.m) * (np.cos(np.pi * self.k / self.K) + 1) / 2.
-        self.k = self.k + 1
-
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
-            param_k.data = param_k.data * _contrast_momentum + param_q.data * (1. - self._contrast_momentum)
+            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
         for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
-            param_k.data = param_k.data * _contrast_momentum + param_q.data * (1. - _contrast_momentum)
-
+            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
     @torch.no_grad()
     def _dequeue_and_enqueue(self, keys):
