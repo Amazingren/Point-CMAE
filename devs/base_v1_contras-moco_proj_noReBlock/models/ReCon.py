@@ -236,11 +236,14 @@ class ReCon(nn.Module):
         self.build_loss_func(self.loss)
 
         # create the queue
-        # self.MAE_encoder.cls_dim = 512
-        self.register_buffer("queue", torch.randn(384, self.K))
+        # self.MAE_encoder.cls_dim = 512, 384, 256
+        self.register_buffer("queue", torch.randn(256, self.K))
         self.queue = F.normalize(self.queue, dim=0)
         self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
 
+        self.projector = MoBYMLP(num_layers=2)
+        self.projector_k = MoBYMLP(num_layers=2)
+        self.predictor = MoBYMLP(num_layers=2)
 
         # cross model contrastive
         self.csc_loss = torch.nn.SmoothL1Loss()
@@ -281,8 +284,15 @@ class ReCon(nn.Module):
         """
         Momentum update of the key encoder
         """
+        _contrast_momentum = 1. - (1. - self.m) * (np.cos(np.pi * self.k / self.K) + 1) / 2.
+        self.k = self.k + 1
+
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
-            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
+            param_k.data = param_k.data * _contrast_momentum + param_q.data * (1. - self._contrast_momentum)
+
+        for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
+            param_k.data = param_k.data * _contrast_momentum + param_q.data * (1. - _contrast_momentum)
+
 
     @torch.no_grad()
     def _dequeue_and_enqueue(self, keys):
@@ -326,21 +336,11 @@ class ReCon(nn.Module):
         neighborhood, center = self.group_divider(pts)
         cls_token, img_token, text_token, x_vis, mask = self.MAE_encoder(pts, neighborhood, center)
 
-        B, _, C = x_vis.shape  # B VIS C
-
-        pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
-        pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
-
-        _, N, _ = pos_emd_mask.shape
-        mask_token = self.mask_token.expand(B, N, -1)
-        x_full = torch.cat([x_vis, mask_token], dim=1)
-        pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
-
         # Teacher encoder branch: For Contrastive Loss, moco, dino, sp, etc...
         if self.self_patch:
-            x_full_proj = self.projector(x_full)
-            x_full_pred = self.predictor(x_full_proj)
-            x_full_pred = F.normalize(x_full_pred, dim=-1)
+            cls_token_proj = self.projector(cls_token)
+            cls_token_pred = self.predictor(cls_token_proj)
+            cls_token = F.normalize(cls_token_pred, dim=-1)
 
             with torch.no_grad():
                 self._momentum_update_key_encoder()  # update the key encoder
@@ -350,11 +350,10 @@ class ReCon(nn.Module):
                     center, 
                     noaug=True
                 )
-                cls_token_k = F.normalize(cls_token_k, dim=1)
-                x_k_proj = self.projector_k(x_vis_k)
-                x_k_proj = F.normalize(x_k_proj, dim=-1)
+                cls_token_k_proj = self.projector_k(cls_token_k)
+                cls_token_k = F.normalize(cls_token_k_proj, dim=1)
 
-            # ce loss with moco contrast: cls_token [128, 384]
+            # ce loss with moco contrast: cls_token [128, 256]
             l_pos = torch.einsum('nc,nc->n', [cls_token, cls_token_k]).unsqueeze(-1) # n 1 
             l_neg = torch.einsum('nc,ck->nk', [cls_token, self.queue.clone().detach()]) # n k
             ce_logits = torch.cat([l_pos, l_neg], dim=1)
@@ -364,11 +363,15 @@ class ReCon(nn.Module):
             moco_loss_weight = 0.1
             losses['moco_loss'] = moco_loss_weight * moco_loss
 
-            # ce loss with moco contrast: global_feats
-            teacher_tmp = 0.2
-            x_k_proj = F.softmax((x_k_proj - self.center) / teacher_tmp, dim=-1)
-            x_k_proj = x_k_proj.detach()
+        B, _, C = x_vis.shape  # B VIS C
 
+        pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
+        pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
+
+        _, N, _ = pos_emd_mask.shape
+        mask_token = self.mask_token.expand(B, N, -1)
+        x_full = torch.cat([x_vis, mask_token], dim=1)
+        pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
 
         # --- For MAE loss ---
         x_rec, q_patch_feats = self.MAE_decoder(x_full, pos_full, N)
@@ -406,3 +409,24 @@ class ReCon(nn.Module):
         self._dequeue_and_enqueue(cls_token_k) # For moco loss
 
         return loss
+
+
+class MoBYMLP(nn.Module):
+    def __init__(self, in_dim=384, inner_dim=512, out_dim=256, num_layers=2):
+        super(MoBYMLP, self).__init__()
+        
+        # hidden layers
+        linear_hidden = [nn.Identity()]
+        for i in range(num_layers - 1):
+            linear_hidden.append(nn.Linear(in_dim if i == 0 else inner_dim, inner_dim))
+            linear_hidden.append(nn.BatchNorm1d(inner_dim))
+            linear_hidden.append(nn.ReLU(inplace=True))
+        self.linear_hidden = nn.Sequential(*linear_hidden)
+
+        self.linear_out = nn.Linear(in_dim if num_layers == 1 else inner_dim, out_dim) if num_layers >= 1 else nn.Identity()
+
+    def forward(self, x):
+        x = self.linear_hidden(x)
+        x = self.linear_out(x)
+
+        return x
