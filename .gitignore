@@ -4,9 +4,8 @@ __pycache__/
 *.pt
 
 # Folders
-devs/*/experiments
-devs/*/joblogs
-
+experiments
+joblogs
 
 
 # Byte-compiled / optimized / DLL files
