@@ -201,21 +201,21 @@ class ReCon(nn.Module):
         # The teacher branch encoder
         self.MAE_encoder_k = MaskTransformer(config)
         self.projector_q = nn.Sequential(
-            nn.Linear(self.trans_dim, 512),
-            nn.LayerNorm(512),
+            nn.Linear(self.trans_dim, 256),
+            nn.LayerNorm(256),
             nn.GELU(),
-            nn.Linear(512, 256),
+            nn.Linear(256, 128),
             # nn.LayerNorm(256)
         )
         self.predictor_q = nn.Sequential(
-            nn.Linear(256, 256)
+            nn.Linear(128, 128)
         )
 
         self.projector_k = nn.Sequential(
-            nn.Linear(self.trans_dim, 512),
-            nn.LayerNorm(512),
+            nn.Linear(self.trans_dim, 256),
+            nn.LayerNorm(256),
             nn.GELU(),
-            nn.Linear(512, 256),
+            nn.Linear(256, 128),
             # nn.LayerNorm(256)
         )
 
