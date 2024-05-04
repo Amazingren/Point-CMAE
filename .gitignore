@@ -4,9 +4,8 @@ __pycache__/
 *.pt
 
 # Folders
-experiments/
-
-
+devs/*/experiments
+devs/*/joblogs
 
 
 
