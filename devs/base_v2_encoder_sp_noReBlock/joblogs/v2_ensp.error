@@ -1,0 +1,192 @@
+2024-05-04 09:33:20,557 - base - INFO - Copy the Config file from cfgs/pretrain/base.yaml to ./experiments/base/pretrain/v2_encoder_sp_noReBlk/config.yaml
+2024-05-04 09:33:20,593 - base - INFO - args.config : cfgs/pretrain/base.yaml
+2024-05-04 09:33:20,594 - base - INFO - args.launcher : none
+2024-05-04 09:33:20,594 - base - INFO - args.local_rank : 0
+2024-05-04 09:33:20,594 - base - INFO - args.num_workers : 8
+2024-05-04 09:33:20,594 - base - INFO - args.seed : 0
+2024-05-04 09:33:20,594 - base - INFO - args.deterministic : False
+2024-05-04 09:33:20,594 - base - INFO - args.sync_bn : False
+2024-05-04 09:33:20,594 - base - INFO - args.exp_name : v2_encoder_sp_noReBlk
+2024-05-04 09:33:20,594 - base - INFO - args.loss : cd1
+2024-05-04 09:33:20,594 - base - INFO - args.start_ckpts : None
+2024-05-04 09:33:20,594 - base - INFO - args.ckpts : None
+2024-05-04 09:33:20,594 - base - INFO - args.val_freq : 1
+2024-05-04 09:33:20,594 - base - INFO - args.vote : False
+2024-05-04 09:33:20,594 - base - INFO - args.resume : False
+2024-05-04 09:33:20,594 - base - INFO - args.svm : False
+2024-05-04 09:33:20,594 - base - INFO - args.zeroshot : False
+2024-05-04 09:33:20,594 - base - INFO - args.test : False
+2024-05-04 09:33:20,594 - base - INFO - args.finetune_model : False
+2024-05-04 09:33:20,594 - base - INFO - args.scratch_model : False
+2024-05-04 09:33:20,594 - base - INFO - args.mode : None
+2024-05-04 09:33:20,594 - base - INFO - args.way : -1
+2024-05-04 09:33:20,594 - base - INFO - args.shot : -1
+2024-05-04 09:33:20,594 - base - INFO - args.fold : -1
+2024-05-04 09:33:20,594 - base - INFO - args.experiment_path : ./experiments/base/pretrain/v2_encoder_sp_noReBlk
+2024-05-04 09:33:20,594 - base - INFO - args.tfboard_path : ./experiments/base/pretrain/TFBoard/v2_encoder_sp_noReBlk
+2024-05-04 09:33:20,594 - base - INFO - args.log_name : base
+2024-05-04 09:33:20,594 - base - INFO - args.use_gpu : True
+2024-05-04 09:33:20,594 - base - INFO - args.distributed : False
+2024-05-04 09:33:20,594 - base - INFO - config.optimizer = edict()
+2024-05-04 09:33:20,594 - base - INFO - config.optimizer.type : AdamW
+2024-05-04 09:33:20,594 - base - INFO - config.optimizer.kwargs = edict()
+2024-05-04 09:33:20,595 - base - INFO - config.optimizer.kwargs.lr : 0.0005
+2024-05-04 09:33:20,595 - base - INFO - config.optimizer.kwargs.weight_decay : 0.05
+2024-05-04 09:33:20,595 - base - INFO - config.scheduler = edict()
+2024-05-04 09:33:20,595 - base - INFO - config.scheduler.type : CosLR
+2024-05-04 09:33:20,595 - base - INFO - config.scheduler.kwargs = edict()
+2024-05-04 09:33:20,595 - base - INFO - config.scheduler.kwargs.epochs : 300
+2024-05-04 09:33:20,595 - base - INFO - config.scheduler.kwargs.initial_epochs : 10
+2024-05-04 09:33:20,595 - base - INFO - config.dataset = edict()
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train = edict()
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train._base_ = edict()
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train._base_.NAME : ShapeNet
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train._base_.DATA_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train._base_.N_POINTS : 8192
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train._base_.PC_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_pc
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train._base_.IMG_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_img
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train._base_.TEXT_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet55.json
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train._base_.ratio : 1.0
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train.others = edict()
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train.others.subset : train
+2024-05-04 09:33:20,595 - base - INFO - config.dataset.train.others.npoints : 1024
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.train.others.bs : 128
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val = edict()
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val._base_ = edict()
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val._base_.NAME : ShapeNet
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val._base_.DATA_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val._base_.N_POINTS : 8192
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val._base_.PC_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_pc
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val._base_.IMG_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_img
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val._base_.TEXT_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet55.json
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val._base_.ratio : 1.0
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val.others = edict()
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val.others.subset : test
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val.others.npoints : 1024
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.val.others.bs : 128
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.test = edict()
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.test._base_ = edict()
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.test._base_.NAME : ShapeNet
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.test._base_.DATA_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.test._base_.N_POINTS : 8192
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.test._base_.PC_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_pc
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.test._base_.IMG_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_img
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.test._base_.TEXT_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet55.json
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.test._base_.ratio : 1.0
+2024-05-04 09:33:20,596 - base - INFO - config.dataset.test.others = edict()
+2024-05-04 09:33:20,597 - base - INFO - config.dataset.test.others.subset : test
+2024-05-04 09:33:20,597 - base - INFO - config.dataset.test.others.npoints : 1024
+2024-05-04 09:33:20,597 - base - INFO - config.dataset.test.others.bs : 128
+2024-05-04 09:33:20,597 - base - INFO - config.model = edict()
+2024-05-04 09:33:20,597 - base - INFO - config.model.NAME : ReCon
+2024-05-04 09:33:20,597 - base - INFO - config.model.group_size : 32
+2024-05-04 09:33:20,597 - base - INFO - config.model.num_group : 64
+2024-05-04 09:33:20,597 - base - INFO - config.model.loss : cdl2
+2024-05-04 09:33:20,597 - base - INFO - config.model.transformer_config = edict()
+2024-05-04 09:33:20,597 - base - INFO - config.model.transformer_config.mask_ratio : 0.6
+2024-05-04 09:33:20,597 - base - INFO - config.model.transformer_config.mask_type : rand
+2024-05-04 09:33:20,597 - base - INFO - config.model.transformer_config.trans_dim : 384
+2024-05-04 09:33:20,597 - base - INFO - config.model.transformer_config.encoder_dims : 384
+2024-05-04 09:33:20,597 - base - INFO - config.model.transformer_config.depth : 12
+2024-05-04 09:33:20,597 - base - INFO - config.model.transformer_config.drop_path_rate : 0.1
+2024-05-04 09:33:20,597 - base - INFO - config.model.transformer_config.num_heads : 6
+2024-05-04 09:33:20,597 - base - INFO - config.model.transformer_config.decoder_depth : 4
+2024-05-04 09:33:20,597 - base - INFO - config.model.transformer_config.decoder_num_heads : 6
+2024-05-04 09:33:20,597 - base - INFO - config.model.img_encoder : False
+2024-05-04 09:33:20,597 - base - INFO - config.model.text_encoder : False
+2024-05-04 09:33:20,597 - base - INFO - config.model.self_contrastive : False
+2024-05-04 09:33:20,597 - base - INFO - config.model.self_patch : True
+2024-05-04 09:33:20,597 - base - INFO - config.npoints : 1024
+2024-05-04 09:33:20,597 - base - INFO - config.total_bs : 128
+2024-05-04 09:33:20,598 - base - INFO - config.step_per_update : 1
+2024-05-04 09:33:20,598 - base - INFO - config.max_epoch : 300
+2024-05-04 09:33:20,598 - base - INFO - config.validate : none
+2024-05-04 09:33:20,598 - base - INFO - Distributed training: False
+2024-05-04 09:33:20,598 - base - INFO - Set random seed to 0, deterministic: False
+2024-05-04 09:33:20,613 - ShapeNet-55 - INFO - [DATASET] sample out 1024 points
+2024-05-04 09:33:20,613 - ShapeNet-55 - INFO - [DATASET] Open file /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55/train.txt
+2024-05-04 09:33:20,624 - ShapeNet-55 - INFO - [DATASET] Open file /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55/test.txt
+2024-05-04 09:33:20,687 - ShapeNet-55 - INFO - [DATASET] load ratio is 1.0
+2024-05-04 09:33:20,687 - ShapeNet-55 - INFO - [DATASET] 52468 instances were loaded
+2024-05-04 09:33:20,689 - ReCon - INFO - [ReCon] 
+2024-05-04 09:33:20,689 - Transformer - INFO - [args] {'mask_ratio': 0.6, 'mask_type': 'rand', 'trans_dim': 384, 'encoder_dims': 384, 'depth': 12, 'drop_path_rate': 0.1, 'num_heads': 6, 'decoder_depth': 4, 'decoder_num_heads': 6}
+2024-05-04 09:33:21,096 - Transformer - INFO - [args] {'mask_ratio': 0.6, 'mask_type': 'rand', 'trans_dim': 384, 'encoder_dims': 384, 'depth': 12, 'drop_path_rate': 0.1, 'num_heads': 6, 'decoder_depth': 4, 'decoder_num_heads': 6}
+2024-05-04 09:33:21,629 - ReCon - INFO - [ReCon] divide point cloud into G64 x S32 points ...
+2024-05-04 09:33:27,390 - base - INFO - Using Data parallel ...
+2024-05-04 09:33:53,603 - base - INFO - [Epoch 0/300][Batch 21/409] BatchTime = 0.201 (s) DataTime = 0.001 (s) Losses = ['6370.5759'] lr = 0.000001
+2024-05-04 09:34:10,239 - base - INFO - [Epoch 0/300][Batch 41/409] BatchTime = 0.192 (s) DataTime = 0.003 (s) Losses = ['6182.6015'] lr = 0.000001
+2024-05-04 09:34:33,644 - base - INFO - [Epoch 0/300][Batch 61/409] BatchTime = 0.201 (s) DataTime = 0.006 (s) Losses = ['6110.1108'] lr = 0.000001
+2024-05-04 09:34:50,451 - base - INFO - [Epoch 0/300][Batch 81/409] BatchTime = 0.200 (s) DataTime = 0.000 (s) Losses = ['6062.3732'] lr = 0.000001
+2024-05-04 09:35:13,461 - base - INFO - [Epoch 0/300][Batch 101/409] BatchTime = 0.191 (s) DataTime = 0.001 (s) Losses = ['6042.4094'] lr = 0.000001
+2024-05-04 09:35:30,263 - base - INFO - [Epoch 0/300][Batch 121/409] BatchTime = 0.192 (s) DataTime = 0.001 (s) Losses = ['6025.4374'] lr = 0.000001
+2024-05-04 09:35:53,905 - base - INFO - [Epoch 0/300][Batch 141/409] BatchTime = 0.216 (s) DataTime = 0.001 (s) Losses = ['6022.7828'] lr = 0.000001
+2024-05-04 09:36:11,138 - base - INFO - [Epoch 0/300][Batch 161/409] BatchTime = 0.191 (s) DataTime = 0.000 (s) Losses = ['6001.3161'] lr = 0.000001
+2024-05-04 09:36:34,520 - base - INFO - [Epoch 0/300][Batch 181/409] BatchTime = 0.203 (s) DataTime = 0.001 (s) Losses = ['6005.0731'] lr = 0.000001
+2024-05-04 09:36:51,194 - base - INFO - [Epoch 0/300][Batch 201/409] BatchTime = 0.215 (s) DataTime = 0.001 (s) Losses = ['5994.1020'] lr = 0.000001
+2024-05-04 09:37:13,832 - base - INFO - [Epoch 0/300][Batch 221/409] BatchTime = 0.211 (s) DataTime = 0.001 (s) Losses = ['5988.3800'] lr = 0.000001
+2024-05-04 09:37:30,905 - base - INFO - [Epoch 0/300][Batch 241/409] BatchTime = 0.205 (s) DataTime = 0.001 (s) Losses = ['5986.8445'] lr = 0.000001
+2024-05-04 09:37:53,687 - base - INFO - [Epoch 0/300][Batch 261/409] BatchTime = 0.210 (s) DataTime = 0.001 (s) Losses = ['5982.3155'] lr = 0.000001
+2024-05-04 09:38:10,049 - base - INFO - [Epoch 0/300][Batch 281/409] BatchTime = 0.190 (s) DataTime = 0.001 (s) Losses = ['5971.5633'] lr = 0.000001
+2024-05-04 09:38:33,060 - base - INFO - [Epoch 0/300][Batch 301/409] BatchTime = 0.222 (s) DataTime = 0.001 (s) Losses = ['5968.9789'] lr = 0.000001
+2024-05-04 09:38:50,153 - base - INFO - [Epoch 0/300][Batch 321/409] BatchTime = 0.206 (s) DataTime = 0.001 (s) Losses = ['5967.2313'] lr = 0.000001
+2024-05-04 09:39:12,835 - base - INFO - [Epoch 0/300][Batch 341/409] BatchTime = 0.192 (s) DataTime = 0.001 (s) Losses = ['5967.5574'] lr = 0.000001
+2024-05-04 09:39:29,642 - base - INFO - [Epoch 0/300][Batch 361/409] BatchTime = 0.193 (s) DataTime = 0.001 (s) Losses = ['5956.4328'] lr = 0.000001
+2024-05-04 09:39:52,979 - base - INFO - [Epoch 0/300][Batch 381/409] BatchTime = 0.187 (s) DataTime = 0.000 (s) Losses = ['5957.9892'] lr = 0.000001
+2024-05-04 09:40:09,641 - base - INFO - [Epoch 0/300][Batch 401/409] BatchTime = 0.193 (s) DataTime = 0.000 (s) Losses = ['5951.9262'] lr = 0.000001
+2024-05-04 09:40:19,927 - base - INFO - [Training] EPOCH: 0 EpochTime = 412.527 (s) Losses = ['6043.1403'] lr = 0.000001
+2024-05-04 09:40:25,888 - base - INFO - Save checkpoint at ./experiments/base/pretrain/v2_encoder_sp_noReBlk/ckpt-last.pth
+2024-05-04 09:40:52,060 - base - INFO - [Epoch 1/300][Batch 21/409] BatchTime = 0.196 (s) DataTime = 0.003 (s) Losses = ['5948.9827'] lr = 0.000001
+2024-05-04 09:41:09,042 - base - INFO - [Epoch 1/300][Batch 41/409] BatchTime = 0.186 (s) DataTime = 0.001 (s) Losses = ['5949.1086'] lr = 0.000001
+2024-05-04 09:41:32,602 - base - INFO - [Epoch 1/300][Batch 61/409] BatchTime = 0.219 (s) DataTime = 0.001 (s) Losses = ['5945.4494'] lr = 0.000001
+2024-05-04 09:41:49,332 - base - INFO - [Epoch 1/300][Batch 81/409] BatchTime = 0.187 (s) DataTime = 0.001 (s) Losses = ['5946.8350'] lr = 0.000001
+2024-05-04 09:42:12,150 - base - INFO - [Epoch 1/300][Batch 101/409] BatchTime = 0.197 (s) DataTime = 0.001 (s) Losses = ['5943.1796'] lr = 0.000001
+2024-05-04 09:42:29,142 - base - INFO - [Epoch 1/300][Batch 121/409] BatchTime = 0.189 (s) DataTime = 0.000 (s) Losses = ['5944.1218'] lr = 0.000001
+2024-05-04 09:42:52,856 - base - INFO - [Epoch 1/300][Batch 141/409] BatchTime = 0.215 (s) DataTime = 0.001 (s) Losses = ['5940.8054'] lr = 0.000001
+2024-05-04 09:43:09,769 - base - INFO - [Epoch 1/300][Batch 161/409] BatchTime = 0.189 (s) DataTime = 0.001 (s) Losses = ['5935.5812'] lr = 0.000001
+2024-05-04 09:43:32,652 - base - INFO - [Epoch 1/300][Batch 181/409] BatchTime = 0.191 (s) DataTime = 0.000 (s) Losses = ['5935.5865'] lr = 0.000001
+2024-05-04 09:43:49,398 - base - INFO - [Epoch 1/300][Batch 201/409] BatchTime = 0.192 (s) DataTime = 0.001 (s) Losses = ['5933.7254'] lr = 0.000001
+2024-05-04 09:44:12,641 - base - INFO - [Epoch 1/300][Batch 221/409] BatchTime = 0.219 (s) DataTime = 0.001 (s) Losses = ['5933.4307'] lr = 0.000001
+2024-05-04 09:44:29,543 - base - INFO - [Epoch 1/300][Batch 241/409] BatchTime = 0.189 (s) DataTime = 0.001 (s) Losses = ['5934.5970'] lr = 0.000001
+2024-05-04 09:44:53,558 - base - INFO - [Epoch 1/300][Batch 261/409] BatchTime = 0.192 (s) DataTime = 0.001 (s) Losses = ['5928.4086'] lr = 0.000001
+2024-05-04 09:45:10,545 - base - INFO - [Epoch 1/300][Batch 281/409] BatchTime = 0.227 (s) DataTime = 0.001 (s) Losses = ['5930.9354'] lr = 0.000001
+2024-05-04 09:45:33,906 - base - INFO - [Epoch 1/300][Batch 301/409] BatchTime = 0.191 (s) DataTime = 0.001 (s) Losses = ['5927.9070'] lr = 0.000001
+2024-05-04 09:45:50,805 - base - INFO - [Epoch 1/300][Batch 321/409] BatchTime = 0.210 (s) DataTime = 0.001 (s) Losses = ['5926.3086'] lr = 0.000001
+2024-05-04 09:46:14,063 - base - INFO - [Epoch 1/300][Batch 341/409] BatchTime = 0.209 (s) DataTime = 0.001 (s) Losses = ['5925.4189'] lr = 0.000001
+2024-05-04 09:46:31,346 - base - INFO - [Epoch 1/300][Batch 361/409] BatchTime = 0.208 (s) DataTime = 0.001 (s) Losses = ['5925.2982'] lr = 0.000001
+2024-05-04 09:46:54,697 - base - INFO - [Epoch 1/300][Batch 381/409] BatchTime = 0.222 (s) DataTime = 0.001 (s) Losses = ['5924.6035'] lr = 0.000001
+2024-05-04 09:47:11,247 - base - INFO - [Epoch 1/300][Batch 401/409] BatchTime = 0.194 (s) DataTime = 0.001 (s) Losses = ['5922.3194'] lr = 0.000001
+2024-05-04 09:47:24,754 - base - INFO - [Training] EPOCH: 1 EpochTime = 418.864 (s) Losses = ['5935.6378'] lr = 0.000501
+2024-05-04 09:47:30,278 - base - INFO - Save checkpoint at ./experiments/base/pretrain/v2_encoder_sp_noReBlk/ckpt-last.pth
+2024-05-04 09:47:56,651 - base - INFO - [Epoch 2/300][Batch 21/409] BatchTime = 0.191 (s) DataTime = 0.001 (s) Losses = ['5897.7828'] lr = 0.000501
+2024-05-04 09:48:13,610 - base - INFO - [Epoch 2/300][Batch 41/409] BatchTime = 0.195 (s) DataTime = 0.001 (s) Losses = ['5883.7562'] lr = 0.000501
+2024-05-04 09:48:37,702 - base - INFO - [Epoch 2/300][Batch 61/409] BatchTime = 0.191 (s) DataTime = 0.001 (s) Losses = ['5870.3403'] lr = 0.000501
+2024-05-04 09:48:54,625 - base - INFO - [Epoch 2/300][Batch 81/409] BatchTime = 0.189 (s) DataTime = 0.001 (s) Losses = ['5858.0394'] lr = 0.000501
+2024-05-04 09:49:18,447 - base - INFO - [Epoch 2/300][Batch 101/409] BatchTime = 0.208 (s) DataTime = 0.001 (s) Losses = ['5845.4957'] lr = 0.000501
+2024-05-04 09:49:35,490 - base - INFO - [Epoch 2/300][Batch 121/409] BatchTime = 0.192 (s) DataTime = 0.001 (s) Losses = ['5834.4111'] lr = 0.000501
+2024-05-04 09:49:58,926 - base - INFO - [Epoch 2/300][Batch 141/409] BatchTime = 0.190 (s) DataTime = 0.001 (s) Losses = ['5823.2727'] lr = 0.000501
+2024-05-04 09:50:15,919 - base - INFO - [Epoch 2/300][Batch 161/409] BatchTime = 0.216 (s) DataTime = 0.001 (s) Losses = ['5813.0751'] lr = 0.000501
+2024-05-04 09:50:39,297 - base - INFO - [Epoch 2/300][Batch 181/409] BatchTime = 0.217 (s) DataTime = 0.001 (s) Losses = ['5802.9919'] lr = 0.000501
+2024-05-04 09:50:56,449 - base - INFO - [Epoch 2/300][Batch 201/409] BatchTime = 0.222 (s) DataTime = 0.001 (s) Losses = ['5793.2100'] lr = 0.000501
+2024-05-04 09:51:20,124 - base - INFO - [Epoch 2/300][Batch 221/409] BatchTime = 0.211 (s) DataTime = 0.001 (s) Losses = ['5784.1506'] lr = 0.000501
+2024-05-04 09:51:36,977 - base - INFO - [Epoch 2/300][Batch 241/409] BatchTime = 0.194 (s) DataTime = 0.000 (s) Losses = ['5775.1460'] lr = 0.000501
+2024-05-04 09:52:00,116 - base - INFO - [Epoch 2/300][Batch 261/409] BatchTime = 0.190 (s) DataTime = 0.000 (s) Losses = ['5768.3759'] lr = 0.000501
+2024-05-04 09:52:17,262 - base - INFO - [Epoch 2/300][Batch 281/409] BatchTime = 0.224 (s) DataTime = 0.001 (s) Losses = ['5761.1222'] lr = 0.000501
+2024-05-04 09:52:40,656 - base - INFO - [Epoch 2/300][Batch 301/409] BatchTime = 0.221 (s) DataTime = 0.001 (s) Losses = ['5754.3974'] lr = 0.000501
+2024-05-04 09:52:57,884 - base - INFO - [Epoch 2/300][Batch 321/409] BatchTime = 0.213 (s) DataTime = 0.001 (s) Losses = ['5747.8724'] lr = 0.000501
+2024-05-04 09:53:21,254 - base - INFO - [Epoch 2/300][Batch 341/409] BatchTime = 0.213 (s) DataTime = 0.001 (s) Losses = ['5742.2848'] lr = 0.000501
+2024-05-04 09:53:38,168 - base - INFO - [Epoch 2/300][Batch 361/409] BatchTime = 0.194 (s) DataTime = 0.001 (s) Losses = ['5737.5221'] lr = 0.000501
+2024-05-04 09:54:01,446 - base - INFO - [Epoch 2/300][Batch 381/409] BatchTime = 0.231 (s) DataTime = 0.009 (s) Losses = ['5732.3327'] lr = 0.000501
+2024-05-04 09:54:18,558 - base - INFO - [Epoch 2/300][Batch 401/409] BatchTime = 0.191 (s) DataTime = 0.001 (s) Losses = ['5727.6182'] lr = 0.000501
+2024-05-04 09:54:31,581 - base - INFO - [Training] EPOCH: 2 EpochTime = 421.301 (s) Losses = ['5800.7136'] lr = 0.001001
+2024-05-04 09:54:37,969 - base - INFO - Save checkpoint at ./experiments/base/pretrain/v2_encoder_sp_noReBlk/ckpt-last.pth
+2024-05-04 09:55:04,359 - base - INFO - [Epoch 3/300][Batch 21/409] BatchTime = 0.208 (s) DataTime = 0.001 (s) Losses = ['5718.9240'] lr = 0.001001
+2024-05-04 09:55:21,384 - base - INFO - [Epoch 3/300][Batch 41/409] BatchTime = 0.217 (s) DataTime = 0.001 (s) Losses = ['5712.7309'] lr = 0.001001
+2024-05-04 09:55:45,558 - base - INFO - [Epoch 3/300][Batch 61/409] BatchTime = 0.190 (s) DataTime = 0.000 (s) Losses = ['5708.0584'] lr = 0.001001
+2024-05-04 09:56:02,555 - base - INFO - [Epoch 3/300][Batch 81/409] BatchTime = 0.214 (s) DataTime = 0.001 (s) Losses = ['5702.5542'] lr = 0.001001
+2024-05-04 09:56:26,353 - base - INFO - [Epoch 3/300][Batch 101/409] BatchTime = 0.217 (s) DataTime = 0.001 (s) Losses = ['5698.9989'] lr = 0.001001
+2024-05-04 09:56:44,125 - base - INFO - [Epoch 3/300][Batch 121/409] BatchTime = 0.190 (s) DataTime = 0.001 (s) Losses = ['5696.1508'] lr = 0.001001
+2024-05-04 09:57:07,734 - base - INFO - [Epoch 3/300][Batch 141/409] BatchTime = 0.198 (s) DataTime = 0.000 (s) Losses = ['5693.6755'] lr = 0.001001
+2024-05-04 09:57:24,383 - base - INFO - [Epoch 3/300][Batch 161/409] BatchTime = 0.202 (s) DataTime = 0.001 (s) Losses = ['5691.0429'] lr = 0.001001
+2024-05-04 09:57:48,170 - base - INFO - [Epoch 3/300][Batch 181/409] BatchTime = 0.198 (s) DataTime = 0.003 (s) Losses = ['5689.3973'] lr = 0.001001
+2024-05-04 09:58:06,254 - base - INFO - [Epoch 3/300][Batch 201/409] BatchTime = 0.193 (s) DataTime = 0.001 (s) Losses = ['5687.4795'] lr = 0.001001
+2024-05-04 09:58:30,966 - base - INFO - [Epoch 3/300][Batch 221/409] BatchTime = 0.199 (s) DataTime = 0.001 (s) Losses = ['5686.2102'] lr = 0.001001

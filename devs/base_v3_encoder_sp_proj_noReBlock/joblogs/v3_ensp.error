@@ -1,0 +1,121 @@
+2024-05-04 09:56:18,113 - base - INFO - Copy the Config file from cfgs/pretrain/base.yaml to ./experiments/base/pretrain/v3_encoder_sp_proj_noReBlk/config.yaml
+2024-05-04 09:56:18,149 - base - INFO - args.config : cfgs/pretrain/base.yaml
+2024-05-04 09:56:18,150 - base - INFO - args.launcher : none
+2024-05-04 09:56:18,150 - base - INFO - args.local_rank : 0
+2024-05-04 09:56:18,150 - base - INFO - args.num_workers : 8
+2024-05-04 09:56:18,150 - base - INFO - args.seed : 0
+2024-05-04 09:56:18,150 - base - INFO - args.deterministic : False
+2024-05-04 09:56:18,150 - base - INFO - args.sync_bn : False
+2024-05-04 09:56:18,150 - base - INFO - args.exp_name : v3_encoder_sp_proj_noReBlk
+2024-05-04 09:56:18,150 - base - INFO - args.loss : cd1
+2024-05-04 09:56:18,150 - base - INFO - args.start_ckpts : None
+2024-05-04 09:56:18,150 - base - INFO - args.ckpts : None
+2024-05-04 09:56:18,150 - base - INFO - args.val_freq : 1
+2024-05-04 09:56:18,150 - base - INFO - args.vote : False
+2024-05-04 09:56:18,150 - base - INFO - args.resume : False
+2024-05-04 09:56:18,150 - base - INFO - args.svm : False
+2024-05-04 09:56:18,150 - base - INFO - args.zeroshot : False
+2024-05-04 09:56:18,150 - base - INFO - args.test : False
+2024-05-04 09:56:18,150 - base - INFO - args.finetune_model : False
+2024-05-04 09:56:18,150 - base - INFO - args.scratch_model : False
+2024-05-04 09:56:18,150 - base - INFO - args.mode : None
+2024-05-04 09:56:18,150 - base - INFO - args.way : -1
+2024-05-04 09:56:18,150 - base - INFO - args.shot : -1
+2024-05-04 09:56:18,150 - base - INFO - args.fold : -1
+2024-05-04 09:56:18,150 - base - INFO - args.experiment_path : ./experiments/base/pretrain/v3_encoder_sp_proj_noReBlk
+2024-05-04 09:56:18,150 - base - INFO - args.tfboard_path : ./experiments/base/pretrain/TFBoard/v3_encoder_sp_proj_noReBlk
+2024-05-04 09:56:18,150 - base - INFO - args.log_name : base
+2024-05-04 09:56:18,150 - base - INFO - args.use_gpu : True
+2024-05-04 09:56:18,150 - base - INFO - args.distributed : False
+2024-05-04 09:56:18,151 - base - INFO - config.optimizer = edict()
+2024-05-04 09:56:18,151 - base - INFO - config.optimizer.type : AdamW
+2024-05-04 09:56:18,151 - base - INFO - config.optimizer.kwargs = edict()
+2024-05-04 09:56:18,151 - base - INFO - config.optimizer.kwargs.lr : 0.0005
+2024-05-04 09:56:18,151 - base - INFO - config.optimizer.kwargs.weight_decay : 0.05
+2024-05-04 09:56:18,151 - base - INFO - config.scheduler = edict()
+2024-05-04 09:56:18,151 - base - INFO - config.scheduler.type : CosLR
+2024-05-04 09:56:18,151 - base - INFO - config.scheduler.kwargs = edict()
+2024-05-04 09:56:18,151 - base - INFO - config.scheduler.kwargs.epochs : 300
+2024-05-04 09:56:18,151 - base - INFO - config.scheduler.kwargs.initial_epochs : 10
+2024-05-04 09:56:18,151 - base - INFO - config.dataset = edict()
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train = edict()
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train._base_ = edict()
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train._base_.NAME : ShapeNet
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train._base_.DATA_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train._base_.N_POINTS : 8192
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train._base_.PC_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_pc
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train._base_.IMG_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_img
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train._base_.TEXT_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet55.json
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train._base_.ratio : 1.0
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train.others = edict()
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train.others.subset : train
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train.others.npoints : 1024
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.train.others.bs : 128
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.val = edict()
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.val._base_ = edict()
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.val._base_.NAME : ShapeNet
+2024-05-04 09:56:18,151 - base - INFO - config.dataset.val._base_.DATA_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.val._base_.N_POINTS : 8192
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.val._base_.PC_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_pc
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.val._base_.IMG_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_img
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.val._base_.TEXT_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet55.json
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.val._base_.ratio : 1.0
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.val.others = edict()
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.val.others.subset : test
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.val.others.npoints : 1024
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.val.others.bs : 128
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test = edict()
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test._base_ = edict()
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test._base_.NAME : ShapeNet
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test._base_.DATA_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test._base_.N_POINTS : 8192
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test._base_.PC_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_pc
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test._base_.IMG_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_img
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test._base_.TEXT_PATH : /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet55.json
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test._base_.ratio : 1.0
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test.others = edict()
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test.others.subset : test
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test.others.npoints : 1024
+2024-05-04 09:56:18,152 - base - INFO - config.dataset.test.others.bs : 128
+2024-05-04 09:56:18,152 - base - INFO - config.model = edict()
+2024-05-04 09:56:18,152 - base - INFO - config.model.NAME : ReCon
+2024-05-04 09:56:18,152 - base - INFO - config.model.group_size : 32
+2024-05-04 09:56:18,152 - base - INFO - config.model.num_group : 64
+2024-05-04 09:56:18,152 - base - INFO - config.model.loss : cdl2
+2024-05-04 09:56:18,152 - base - INFO - config.model.transformer_config = edict()
+2024-05-04 09:56:18,153 - base - INFO - config.model.transformer_config.mask_ratio : 0.6
+2024-05-04 09:56:18,153 - base - INFO - config.model.transformer_config.mask_type : rand
+2024-05-04 09:56:18,153 - base - INFO - config.model.transformer_config.trans_dim : 384
+2024-05-04 09:56:18,153 - base - INFO - config.model.transformer_config.encoder_dims : 384
+2024-05-04 09:56:18,153 - base - INFO - config.model.transformer_config.depth : 12
+2024-05-04 09:56:18,153 - base - INFO - config.model.transformer_config.drop_path_rate : 0.1
+2024-05-04 09:56:18,153 - base - INFO - config.model.transformer_config.num_heads : 6
+2024-05-04 09:56:18,153 - base - INFO - config.model.transformer_config.decoder_depth : 4
+2024-05-04 09:56:18,153 - base - INFO - config.model.transformer_config.decoder_num_heads : 6
+2024-05-04 09:56:18,153 - base - INFO - config.model.img_encoder : False
+2024-05-04 09:56:18,153 - base - INFO - config.model.text_encoder : False
+2024-05-04 09:56:18,153 - base - INFO - config.model.self_contrastive : False
+2024-05-04 09:56:18,153 - base - INFO - config.model.self_patch : True
+2024-05-04 09:56:18,153 - base - INFO - config.npoints : 1024
+2024-05-04 09:56:18,153 - base - INFO - config.total_bs : 128
+2024-05-04 09:56:18,153 - base - INFO - config.step_per_update : 1
+2024-05-04 09:56:18,153 - base - INFO - config.max_epoch : 300
+2024-05-04 09:56:18,153 - base - INFO - config.validate : none
+2024-05-04 09:56:18,153 - base - INFO - Distributed training: False
+2024-05-04 09:56:18,153 - base - INFO - Set random seed to 0, deterministic: False
+2024-05-04 09:56:18,356 - ShapeNet-55 - INFO - [DATASET] sample out 1024 points
+2024-05-04 09:56:18,356 - ShapeNet-55 - INFO - [DATASET] Open file /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55/train.txt
+2024-05-04 09:56:18,370 - ShapeNet-55 - INFO - [DATASET] Open file /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55/test.txt
+2024-05-04 09:56:18,436 - ShapeNet-55 - INFO - [DATASET] load ratio is 1.0
+2024-05-04 09:56:18,436 - ShapeNet-55 - INFO - [DATASET] 52468 instances were loaded
+2024-05-04 09:56:18,438 - ReCon - INFO - [ReCon] 
+2024-05-04 09:56:18,438 - Transformer - INFO - [args] {'mask_ratio': 0.6, 'mask_type': 'rand', 'trans_dim': 384, 'encoder_dims': 384, 'depth': 12, 'drop_path_rate': 0.1, 'num_heads': 6, 'decoder_depth': 4, 'decoder_num_heads': 6}
+2024-05-04 09:56:18,863 - Transformer - INFO - [args] {'mask_ratio': 0.6, 'mask_type': 'rand', 'trans_dim': 384, 'encoder_dims': 384, 'depth': 12, 'drop_path_rate': 0.1, 'num_heads': 6, 'decoder_depth': 4, 'decoder_num_heads': 6}
+2024-05-04 09:56:19,387 - ReCon - INFO - [ReCon] divide point cloud into G64 x S32 points ...
+2024-05-04 09:56:25,347 - base - INFO - Using Data parallel ...
+2024-05-04 09:56:52,262 - base - INFO - [Epoch 0/300][Batch 21/409] BatchTime = 0.194 (s) DataTime = 0.000 (s) Losses = ['6154.4347'] lr = 0.000001
+2024-05-04 09:57:09,583 - base - INFO - [Epoch 0/300][Batch 41/409] BatchTime = 0.198 (s) DataTime = 0.001 (s) Losses = ['5983.8481'] lr = 0.000001
+2024-05-04 09:57:33,910 - base - INFO - [Epoch 0/300][Batch 61/409] BatchTime = 0.219 (s) DataTime = 0.001 (s) Losses = ['5878.9191'] lr = 0.000001
+2024-05-04 09:57:51,073 - base - INFO - [Epoch 0/300][Batch 81/409] BatchTime = 0.196 (s) DataTime = 0.001 (s) Losses = ['5801.0573'] lr = 0.000001
+2024-05-04 09:58:15,195 - base - INFO - [Epoch 0/300][Batch 101/409] BatchTime = 0.194 (s) DataTime = 0.001 (s) Losses = ['5760.0546'] lr = 0.000001
+2024-05-04 09:58:32,358 - base - INFO - [Epoch 0/300][Batch 121/409] BatchTime = 0.197 (s) DataTime = 0.001 (s) Losses = ['5729.2471'] lr = 0.000001
