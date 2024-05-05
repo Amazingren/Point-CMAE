@@ -197,12 +197,10 @@ class ReCon(nn.Module):
                 nn.Linear(self.trans_dim, 256),
                 nn.LayerNorm(256),
                 nn.GELU(),
-                nn.Linear(256, 128),
-                nn.LayerNorm(128)
+                nn.Linear(256, 128)
         )
 
         self.predictor = nn.Sequential(
-                nn.GELU(),
                 nn.Linear(128, 128),
         )
         
@@ -212,8 +210,7 @@ class ReCon(nn.Module):
                 nn.Linear(self.trans_dim, 256),
                 nn.LayerNorm(256),
                 nn.GELU(),
-                nn.Linear(256, 128),
-                nn.LayerNorm(128)
+                nn.Linear(256, 128)
         )
 
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
@@ -350,6 +347,12 @@ class ReCon(nn.Module):
         neighborhood, center = self.group_divider(pts)
         cls_token, img_token, text_token, x_vis, mask = self.MAE_encoder(pts, neighborhood, center)
 
+        B, _, C = x_vis.shape  # B VIS C
+        pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
+        _, N, _ = pos_emd_mask.shape
+        mask_token = self.mask_token.expand(B, N, -1)
+        x_full = torch.cat([x_vis, mask_token], dim=1)
+
         # Teacher encoder branch: For Contrastive Loss, moco, dino, sp, etc...
         if self.self_patch:
             # --- For cls token
@@ -359,7 +362,7 @@ class ReCon(nn.Module):
 
             # --- For student patch feats
             # no mask, x_vis = x_full
-            q_patch_proj = self.projector(x_vis)
+            q_patch_proj = self.projector(x_full)
             q_patch_pred = self.predictor(q_patch_proj)
             q_patch_pred = F.normalize(q_patch_pred, dim=-1)  
             with torch.no_grad():
@@ -405,7 +408,7 @@ class ReCon(nn.Module):
             # losses['moco_loss'] = moco_loss_weight * moco_loss
 
         # --- For MAE loss ---
-        B, _, C = x_vis.shape  # B VIS C
+        # B, _, C = x_vis.shape  # B VIS C
 
         # pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
         # pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
