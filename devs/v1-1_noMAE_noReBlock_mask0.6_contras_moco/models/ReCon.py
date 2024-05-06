@@ -189,39 +189,15 @@ class ReCon(nn.Module):
         self.config = config
         self.trans_dim = config.transformer_config.trans_dim
         self.m = 0.999
-        self.T = 0.2
-        self.K = 4096
+        self.T = 0.1
+        self.K = 16384
 
         self.MAE_encoder = MaskTransformer(config)
-        self.projector = nn.Sequential(
-                nn.Linear(self.trans_dim, 256),
-                nn.BatchNorm1d(256),
-                nn.ReLU(inplace=True),
-                nn.Linear(256, 128),
-                nn.BatchNorm1d(128)
-        )
-        
-        self.predictor = nn.Sequential(
-                nn.ReLU(inplace=True),
-                nn.Linear(128, 128),
-                nn.BatchNorm1d(128)
-        )
-        
+
         # The teacher branch encoder
         self.MAE_encoder_k = MaskTransformer(config)
-        self.projector_k = nn.Sequential(
-                nn.Linear(self.trans_dim, 256),
-                nn.BatchNorm1d(256),
-                nn.ReLU(inplace=True),
-                nn.Linear(256, 128),
-                nn.BatchNorm1d(128)
-        )
 
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
-            param_k.data.copy_(param_q.data)  # initialize
-            param_k.requires_grad = False  # not update by gradient
-        
-        for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
             param_k.requires_grad = False  # not update by gradient
 
@@ -260,7 +236,7 @@ class ReCon(nn.Module):
         self.build_loss_func(self.loss)
 
         # create the queue
-        self.register_buffer("queue", torch.randn(128, self.K))
+        self.register_buffer("queue", torch.randn(384, self.K))
         self.queue = F.normalize(self.queue, dim=0)
         self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
 
@@ -306,10 +282,6 @@ class ReCon(nn.Module):
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
             param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
-        for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
-            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
-
-
     @torch.no_grad()
     def _dequeue_and_enqueue(self, keys):
         # gather keys before updating queue
@@ -354,9 +326,7 @@ class ReCon(nn.Module):
 
         # Teacher encoder branch: For Contrastive Loss, moco, dino, sp, etc...
         if self.self_patch:
-            cls_token = self.projector(cls_token)
-            cls_pred = self.predictor(cls_token)
-            cls_token = F.normalize(cls_pred, dim=-1)
+            cls_token = F.normalize(cls_token, dim=-1)
             with torch.no_grad():
                 self._momentum_update_key_encoder()  # update the key encoder
                 cls_token_k, img_token_K, text_token_k, x_vis_k, mask_k = self.MAE_encoder(
@@ -365,15 +335,15 @@ class ReCon(nn.Module):
                     center, 
                     noaug=True
                 )
-                cls_token_k = self.projector_k(cls_token_k)
                 cls_token_k = F.normalize(cls_token_k, dim=-1)
 
-            # ce loss with moco contrast
+            # ce loss with moco contrast:
             l_pos = torch.einsum('nc,nc->n', [cls_token, cls_token_k]).unsqueeze(-1) # n 1 
             l_neg = torch.einsum('nc,ck->nk', [cls_token, self.queue.clone().detach()]) # n k
             ce_logits = torch.cat([l_pos, l_neg], dim=1)
             ce_logits /= self.T
             labels = torch.zeros(l_pos.shape[0], dtype=torch.long).to(pts.device)
+            # labels = (torch.arange(l_pos.shape[0], dtype=torch.long) # TODO: No queue used in Moco-v3
             moco_loss = self.loss_ce(ce_logits, labels)
             moco_loss_weight = 1.0
             losses['moco_loss'] = moco_loss_weight * moco_loss

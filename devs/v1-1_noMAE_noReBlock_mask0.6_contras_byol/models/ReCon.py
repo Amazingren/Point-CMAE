@@ -195,26 +195,26 @@ class ReCon(nn.Module):
         self.MAE_encoder = MaskTransformer(config)
         self.projector = nn.Sequential(
                 nn.Linear(self.trans_dim, 256),
-                nn.BatchNorm1d(256),
+                nn.LayerNorm(256),
                 nn.ReLU(inplace=True),
                 nn.Linear(256, 128),
-                nn.BatchNorm1d(128)
+                nn.LayerNorm(128),
         )
         
         self.predictor = nn.Sequential(
                 nn.ReLU(inplace=True),
                 nn.Linear(128, 128),
-                nn.BatchNorm1d(128)
+                nn.LayerNorm(128),
         )
         
         # The teacher branch encoder
         self.MAE_encoder_k = MaskTransformer(config)
         self.projector_k = nn.Sequential(
                 nn.Linear(self.trans_dim, 256),
-                nn.BatchNorm1d(256),
+                nn.LayerNorm(256),
                 nn.ReLU(inplace=True),
                 nn.Linear(256, 128),
-                nn.BatchNorm1d(128)
+                nn.LayerNorm(128),
         )
 
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
@@ -308,7 +308,6 @@ class ReCon(nn.Module):
 
         for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
             param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
-
 
     @torch.no_grad()
     def _dequeue_and_enqueue(self, keys):

@@ -216,7 +216,7 @@ class TransformerEncoder(nn.Module):
         self.blocks = nn.ModuleList([
             Block(
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=drop_rate, attn_drop=attn_drop_rate, with_contrast=True, finetune=finetune,
+                drop=drop_rate, attn_drop=attn_drop_rate, with_contrast=False, finetune=finetune,
                 drop_path=drop_path_rate[i] if isinstance(drop_path_rate, list) else drop_path_rate
             )
             for i in range(depth)])
