@@ -24,4 +24,4 @@ cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs/v1-1_noMAE_noReBlock_mask0
 
 python main.py \
     --config cfgs/pretrain/base.yaml \
-    --exp_name vv1-1_noMAE_noReBlock_mask0.6_contras_moco
+    --exp_name v1-1_noMAE_noReBlock_mask0.6_contras_moco

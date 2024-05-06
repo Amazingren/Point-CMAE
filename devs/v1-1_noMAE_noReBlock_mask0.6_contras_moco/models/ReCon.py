@@ -189,7 +189,7 @@ class ReCon(nn.Module):
         self.config = config
         self.trans_dim = config.transformer_config.trans_dim
         self.m = 0.999
-        self.T = 0.1
+        self.T = 0.2
         self.K = 16384
 
         self.MAE_encoder = MaskTransformer(config)
@@ -326,7 +326,6 @@ class ReCon(nn.Module):
 
         # Teacher encoder branch: For Contrastive Loss, moco, dino, sp, etc...
         if self.self_patch:
-            cls_token = F.normalize(cls_token, dim=-1)
             with torch.no_grad():
                 self._momentum_update_key_encoder()  # update the key encoder
                 cls_token_k, img_token_K, text_token_k, x_vis_k, mask_k = self.MAE_encoder(
@@ -335,15 +334,15 @@ class ReCon(nn.Module):
                     center, 
                     noaug=True
                 )
-                cls_token_k = F.normalize(cls_token_k, dim=-1)
 
-            # ce loss with moco contrast:
+            # Moco Loss:
+            cls_token = F.normalize(cls_token, dim=-1)
+            cls_token_k = F.normalize(cls_token_k, dim=-1)
             l_pos = torch.einsum('nc,nc->n', [cls_token, cls_token_k]).unsqueeze(-1) # n 1 
             l_neg = torch.einsum('nc,ck->nk', [cls_token, self.queue.clone().detach()]) # n k
             ce_logits = torch.cat([l_pos, l_neg], dim=1)
             ce_logits /= self.T
             labels = torch.zeros(l_pos.shape[0], dtype=torch.long).to(pts.device)
-            # labels = (torch.arange(l_pos.shape[0], dtype=torch.long) # TODO: No queue used in Moco-v3
             moco_loss = self.loss_ce(ce_logits, labels)
             moco_loss_weight = 1.0
             losses['moco_loss'] = moco_loss_weight * moco_loss
