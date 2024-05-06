@@ -1,7 +1,7 @@
 NAME: ShapeNet
-DATA_PATH: /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55
+DATA_PATH: /workspace/wwang/BINGO/datasets/point_cloud/ShapeNet55-34/ShapeNet-55_recon
 N_POINTS: 8192
-PC_PATH: /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_pc
-IMG_PATH: /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_img
-TEXT_PATH: /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet55.json
+PC_PATH: /workspace/wwang/BINGO/datasets/point_cloud/ShapeNet55-34/shapenet_pc
+IMG_PATH: /workspace/wwang/BINGO/datasets/point_cloud/ShapeNet55-34/shapenet_img
+TEXT_PATH: /workspace/wwang/BINGO/datasets/point_cloud/ShapeNet55-34/shapenet55.json
 ratio: 1.0
