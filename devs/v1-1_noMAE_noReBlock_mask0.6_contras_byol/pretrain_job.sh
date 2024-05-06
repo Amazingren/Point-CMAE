@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=v1-1
+#SBATCH --job-name=v1-1_byol
 #SBATCH --nodelist=gcp-eu-2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=a100-40g:1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem-per-gpu=40G
-#SBATCH --output=./joblogs/v1-1.log      # Redirect stdout to a log file
-#SBATCH --error=./joblogs/v1-1.error     # Redirect stderr to a separate error log file
+#SBATCH --output=./joblogs/v1-1_byol.log      # Redirect stdout to a log file
+#SBATCH --error=./joblogs/v1-1_byol.error     # Redirect stderr to a separate error log file
 
 # cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.3/lib64:$LD_LIBRARY_PATH

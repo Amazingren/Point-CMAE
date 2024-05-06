@@ -190,7 +190,7 @@ class ReCon(nn.Module):
         self.trans_dim = config.transformer_config.trans_dim
         self.m = 0.999
         self.T = 0.2
-        self.K = 4096
+        self.K = 16384
 
         self.MAE_encoder = MaskTransformer(config)
         self.projector = nn.Sequential(
@@ -202,7 +202,6 @@ class ReCon(nn.Module):
         )
         
         self.predictor = nn.Sequential(
-                nn.ReLU(inplace=True),
                 nn.Linear(128, 128),
                 nn.LayerNorm(128),
         )
@@ -354,8 +353,7 @@ class ReCon(nn.Module):
         # Teacher encoder branch: For Contrastive Loss, moco, dino, sp, etc...
         if self.self_patch:
             cls_token = self.projector(cls_token)
-            cls_pred = self.predictor(cls_token)
-            cls_token = F.normalize(cls_pred, dim=-1)
+            cls_token = self.predictor(cls_token)
             with torch.no_grad():
                 self._momentum_update_key_encoder()  # update the key encoder
                 cls_token_k, img_token_K, text_token_k, x_vis_k, mask_k = self.MAE_encoder(
@@ -365,7 +363,6 @@ class ReCon(nn.Module):
                     noaug=True
                 )
                 cls_token_k = self.projector_k(cls_token_k)
-                cls_token_k = F.normalize(cls_token_k, dim=-1)
 
             # ce loss with moco contrast
             l_pos = torch.einsum('nc,nc->n', [cls_token, cls_token_k]).unsqueeze(-1) # n 1 
