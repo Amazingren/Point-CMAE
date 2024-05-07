@@ -349,15 +349,18 @@ class ReCon(nn.Module):
         neighborhood, center = self.group_divider(pts)
         cls_token, img_token, text_token, x_vis, mask = self.MAE_encoder(pts, neighborhood, center)
 
+        # --- For MAE loss ---
         B, _, C = x_vis.shape  # B VIS C
 
-        # pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
+        pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
         pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
 
         _, N, _ = pos_emd_mask.shape
         mask_token = self.mask_token.expand(B, N, -1)
         x_full = torch.cat([x_vis, mask_token], dim=1)
-        # pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
+        pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
+
+        x_rec, _ = self.MAE_decoder(x_full, pos_full, N)
 
         # Teacher encoder branch: For Contrastive Loss, moco, dino, sp, etc...
         if self.self_patch:
@@ -371,6 +374,8 @@ class ReCon(nn.Module):
             q_patch_proj = self.projector(x_full)
             q_patch_pred = self.predictor(q_patch_proj)
             q_patch_pred = F.normalize(q_patch_pred, dim=-1)  
+
+            # --- For teacher patch feats
             with torch.no_grad():
                 self._momentum_update_key_encoder()  # update the key encoder
                 cls_token_k, img_token_K, text_token_k, x_vis_k, mask_k = self.MAE_encoder(
@@ -399,12 +404,8 @@ class ReCon(nn.Module):
                 k_patch_proj = self.projector_k(k_neighbor_feats)
                 k_patch_proj = F.normalize(k_patch_proj, dim=-1)
 
-            # k_patch_proj = F.softmax(k_patch_proj / 0.1, dim=-1)
-            # loss_selfpatch = torch.sum(-k_patch_proj.detach() * F.log_softmax(q_patch_pred / 0.2, dim=-1), dim=-1)
-            # losses['loss_selfpatch'] = loss_selfpatch.mean()
-
             loss_selfpatch = contrastive_loss_3d(k_patch_proj.detach(), q_patch_pred, tau=0.1)
-            losses['loss_selfpatch'] = loss_selfpatch.mean()
+            losses['loss_selfpatch'] = loss_selfpatch.mean() * 0.5
 
             # --- ce loss with moco contrast
             # l_pos = torch.einsum('nc,nc->n', [cls_token, cls_token_k]).unsqueeze(-1) # n 1 
@@ -416,24 +417,11 @@ class ReCon(nn.Module):
             # moco_loss_weight = 1.0
             # losses['moco_loss'] = moco_loss_weight * moco_loss
 
-        # --- For MAE loss ---
-        # B, _, C = x_vis.shape  # B VIS C
+        B, M, C = x_rec.shape
+        rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
 
-        # pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
-        # pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
-
-        # _, N, _ = pos_emd_mask.shape
-        # mask_token = self.mask_token.expand(B, N, -1)
-        # x_full = torch.cat([x_vis, mask_token], dim=1)
-        # pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
-
-        # x_rec, q_patch_feats = self.MAE_decoder(x_full, pos_full, N)
-
-        # B, M, C = x_rec.shape
-        # rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
-
-        # gt_points = neighborhood[mask].reshape(B * M, -1, 3)
-        # losses['mdm'] = self.loss_func(rebuild_points, gt_points)
+        gt_points = neighborhood[mask].reshape(B * M, -1, 3)
+        losses['mdm'] = self.loss_func(rebuild_points, gt_points)
 
         if self.csc_img:
             img_feature = self.img_encoder(img)
