@@ -32,7 +32,7 @@ model : {
   num_group: 64,
   loss: cdl2,
   transformer_config: {
-    mask_ratio: 0,
+    mask_ratio: 0.6,
     mask_type: 'rand',
     trans_dim: 384,
     encoder_dims: 384,
@@ -48,7 +48,7 @@ model : {
   # self_contrastive: FALSE,
   img_encoder: False,
   text_encoder: False,
-  self_contrastive: True,
+  self_contrastive: False,
   }
 
 npoints: 1024
