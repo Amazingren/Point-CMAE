@@ -280,21 +280,21 @@ class ReCon(nn.Module):
 
         B, _, C = x_vis.shape  # B VIS C
 
-        # pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
-        # pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
+        pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
+        pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
 
-        # _, N, _ = pos_emd_mask.shape
-        # mask_token = self.mask_token.expand(B, N, -1)
-        # x_full = torch.cat([x_vis, mask_token], dim=1)
-        # pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
+        _, N, _ = pos_emd_mask.shape
+        mask_token = self.mask_token.expand(B, N, -1)
+        x_full = torch.cat([x_vis, mask_token], dim=1)
+        pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
 
-        # x_rec = self.MAE_decoder(x_full, pos_full, N)
+        x_rec = self.MAE_decoder(x_full, pos_full, N)
 
-        # B, M, C = x_rec.shape
-        # rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
+        B, M, C = x_rec.shape
+        rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
 
-        # gt_points = neighborhood[mask].reshape(B * M, -1, 3)
-        # losses['mdm'] = self.loss_func(rebuild_points, gt_points)
+        gt_points = neighborhood[mask].reshape(B * M, -1, 3)
+        losses['mdm'] = self.loss_func(rebuild_points, gt_points)
 
         if self.csc_img:
             img_feature = self.img_encoder(img)
