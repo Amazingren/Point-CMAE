@@ -195,34 +195,14 @@ class ReCon(nn.Module):
         self.K = 16384
 
         self.MAE_encoder = MaskTransformer(config)
-        self.projector = nn.Sequential(
-                nn.Linear(self.trans_dim, 256),
-                nn.LayerNorm(256),
-                nn.GELU(),
-                nn.Linear(256, 128)
-        )
-
-        self.predictor = nn.Sequential(
-                nn.Linear(128, 128),
-        )
         
         # The teacher branch encoder
         self.MAE_encoder_k = MaskTransformer(config)
-        self.projector_k = nn.Sequential(
-                nn.Linear(self.trans_dim, 256),
-                nn.LayerNorm(256),
-                nn.GELU(),
-                nn.Linear(256, 128)
-        )
 
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
             param_k.requires_grad = False  # not update by gradient
         
-        for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
-            param_k.data.copy_(param_q.data)  # initialize
-            param_k.requires_grad = False  # not update by gradient
-
         self.group_size = config.group_size
         self.num_group = config.num_group
         self.drop_path_rate = config.transformer_config.drop_path_rate
@@ -257,10 +237,10 @@ class ReCon(nn.Module):
         # loss
         self.build_loss_func(self.loss)
 
-        # create the queue for moco loss
-        self.register_buffer("queue", torch.randn(384, self.K))
-        self.queue = F.normalize(self.queue, dim=0)
-        self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
+        # # create the queue for moco loss
+        # self.register_buffer("queue", torch.randn(384, self.K))
+        # self.queue = F.normalize(self.queue, dim=0)
+        # self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
 
         # cross model contrastive
         self.csc_loss = torch.nn.SmoothL1Loss()
@@ -304,24 +284,21 @@ class ReCon(nn.Module):
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
             param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
-        for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
-            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
+    # @torch.no_grad()
+    # def _dequeue_and_enqueue(self, keys):
+    #     # gather keys before updating queue
+    #     # keys = dist_collect(keys) # only 1 gpu
 
-    @torch.no_grad()
-    def _dequeue_and_enqueue(self, keys):
-        # gather keys before updating queue
-        # keys = dist_collect(keys) # only 1 gpu
+    #     batch_size = keys.shape[0]
 
-        batch_size = keys.shape[0]
+    #     ptr = int(self.queue_ptr)
+    #     assert self.K % batch_size == 0  # for simplicity
 
-        ptr = int(self.queue_ptr)
-        assert self.K % batch_size == 0  # for simplicity
+    #     # replace the keys at ptr (dequeue and enqueue)
+    #     self.queue[:, ptr:ptr + batch_size] = keys.T
+    #     ptr = (ptr + batch_size) % self.K  # move pointer
 
-        # replace the keys at ptr (dequeue and enqueue)
-        self.queue[:, ptr:ptr + batch_size] = keys.T
-        ptr = (ptr + batch_size) % self.K  # move pointer
-
-        self.queue_ptr[0] = ptr
+    #     self.queue_ptr[0] = ptr
 
     def build_loss_func(self, loss_type):
         self.loss_ce = nn.CrossEntropyLoss()
@@ -359,10 +336,7 @@ class ReCon(nn.Module):
 
         # Teacher encoder branch: For Contrastive Loss, moco, dino, sp, etc...
         if self.self_patch:
-            # --- For student patch feats
-            q_patch_proj = self.projector(x_full)
-            q_patch_pred = self.predictor(q_patch_proj)
-            q_patch_pred = F.normalize(q_patch_pred, dim=-1)  
+            q_patch_pred = F.normalize(x_full, dim=-1)  
             with torch.no_grad():
                 self._momentum_update_key_encoder()  # update the key encoder
                 cls_token_k, img_token_K, text_token_k, x_vis_k, mask_k = self.MAE_encoder(
@@ -385,13 +359,13 @@ class ReCon(nn.Module):
                 neighbor_weight = mask_weight / mask_weight.sum(dim=-1, keepdim=True).clamp(min=1e-5)
 
                 k_neighbor_feats = torch.einsum('bnk,bnd->bnd', neighbor_weight, k_patch_feats)
-                k_patch_proj = self.projector_k(k_neighbor_feats)
-                k_patch_proj = F.normalize(k_patch_proj, dim=-1)
 
-            k_patch_proj = F.softmax(k_patch_proj / 0.1, dim=-1)
-            loss_selfpatch = torch.sum(-k_patch_proj.detach() * F.log_softmax(q_patch_pred / 0.2, dim=-1), dim=-1)
-            losses['loss_selfpatch'] = loss_selfpatch.mean()
+            # --- sp loss V1 --- 
+            k_patch_proj = F.softmax(k_neighbor_feats / 0.1, dim=-1)
+            loss_selfpatch = torch.sum(-k_patch_proj.detach() * F.log_softmax(q_patch_pred / 0.1, dim=-1), dim=-1)
+            losses['loss_selfpatch'] = loss_selfpatch.mean() * 0.5
 
+            # --- sp loss V2 --- 
             # loss_selfpatch = contrastive_loss_3d(k_patch_proj.detach(), q_patch_pred, tau=0.1)
             # losses['loss_selfpatch'] = loss_selfpatch.mean()
 
@@ -441,6 +415,6 @@ class ReCon(nn.Module):
 
         loss = sum(losses.values())
 
-        self._dequeue_and_enqueue(cls_token_k) # For moco loss
+        # self._dequeue_and_enqueue(cls_token_k) # For moco loss
 
         return loss
