@@ -243,6 +243,17 @@ class ReCon(nn.Module):
             num_heads=self.decoder_num_heads,
         )
 
+        self.MAE_decoder_k = TransformerDecoder(
+            embed_dim=self.trans_dim,
+            depth=self.decoder_depth,
+            drop_path_rate=dpr,
+            num_heads=self.decoder_num_heads,
+        )
+
+        for param_q, param_k in zip(self.MAE_decoder.parameters(), self.MAE_decoder_k.parameters()):
+            param_k.data.copy_(param_q.data)  # initialize
+            param_k.requires_grad = False  # not update by gradient
+        
         print_log(f'[ReCon] divide point cloud into G{self.num_group} x S{self.group_size} points ...',
                   logger='ReCon')
         self.group_divider = Group(num_group=self.num_group, group_size=self.group_size)
@@ -305,6 +316,9 @@ class ReCon(nn.Module):
             param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
         for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
+            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
+
+        for param_q, param_k in zip(self.MAE_decoder.parameters(), self.MAE_decoder_k.parameters()):
             param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
     # @torch.no_grad()
@@ -389,9 +403,6 @@ class ReCon(nn.Module):
                 # cls_token_k = F.normalize(cls_token_k, dim=-1)
 
                 _, k_patch_feats = self.MAE_decoder(x_vis_k, pos_full, N)
-                
-
-                k_patch_feats = x_vis_k
                 k_patch_norm = F.normalize(k_patch_feats, dim=-1)
 
                 cdist = torch.cdist(center, center)
