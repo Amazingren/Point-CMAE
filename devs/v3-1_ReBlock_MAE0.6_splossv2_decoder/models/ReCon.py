@@ -419,7 +419,7 @@ class ReCon(nn.Module):
                 k_patch_proj = F.normalize(k_patch_proj, dim=-1)
 
             loss_selfpatch = contrastive_loss_3d(k_patch_proj.detach(), q_patch_pred, tau=0.1)
-            losses['loss_selfpatch'] = loss_selfpatch.mean() * 0.5
+            losses['loss_selfpatch'] = loss_selfpatch.mean()
 
             # --- ce loss with moco contrast
             # l_pos = torch.einsum('nc,nc->n', [cls_token, cls_token_k]).unsqueeze(-1) # n 1 
