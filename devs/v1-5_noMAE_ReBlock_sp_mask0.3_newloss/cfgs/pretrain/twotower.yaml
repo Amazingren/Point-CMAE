@@ -18,21 +18,17 @@ dataset : {
   val : { _base_: cfgs/dataset_configs/ShapeNet-55.yaml,
             others: {subset: 'test', npoints: 1024}},
   test : { _base_: cfgs/dataset_configs/ShapeNet-55.yaml,
-            others: {subset: 'test', npoints: 1024}},
-  # using extra data to validate
-  # extra_train: { _base_: cfgs/dataset_configs/ModelNet40.yaml,
-  #          others: {subset: 'train', npoints: 1024}},
-  # extra_val: { _base_: cfgs/dataset_configs/ModelNet40.yaml,
-  #         others: {subset: 'test', npoints: 1024}}
-}
+            others: {subset: 'test', npoints: 1024}}}
 
 model : {
-  NAME: ReCon,
+  NAME: TwoTower,
   group_size: 32,
   num_group: 64,
   loss: cdl2,
+  class_dim: 55,
+  cls_sample: 256,
   transformer_config: {
-    mask_ratio: 0.2,
+    mask_ratio: 0.6,
     mask_type: 'rand',
     trans_dim: 384,
     encoder_dims: 384,
@@ -42,18 +38,11 @@ model : {
     decoder_depth: 4,
     decoder_num_heads: 6,
   },
-  # img_encoder: 'vit_base_patch16_224_in21k',
-  # # img_encoder: 'ViT-B/32', # for Zero-Shot pretraining setting
-  # text_encoder: 'ViT-B/32',
-  # self_contrastive: FALSE,
-  img_encoder: False,
-  text_encoder: False,
-  self_contrastive: False,
-  self_patch: True
+  img_encoder: 'ViT-B/32',
+  text_encoder: 'ViT-B/32',
   }
 
 npoints: 1024
 total_bs : 128
 step_per_update : 1
 max_epoch : 300
-validate : 'none' # 'svm', 'zeroshot'
