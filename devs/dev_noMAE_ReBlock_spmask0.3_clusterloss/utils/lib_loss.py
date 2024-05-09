@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 # from torch_scatter import scatter_mean
 
-from libs.lib_utils import online_clustering, ot_assign
+from utils.lib_utilis import online_clustering, ot_assign
 
 
 def loss_fn(x, y):
@@ -11,7 +11,6 @@ def loss_fn(x, y):
     y = F.normalize(y, dim=-1, p=2)
     loss = 2 - 2 * (x * y).sum(dim=-1)
     return loss.mean()
-
 
 def contrastive_loss_3d(k, q, tau=0.1, is_norm=False):
     """
@@ -40,27 +39,27 @@ def contrastive_loss_3d(k, q, tau=0.1, is_norm=False):
 
     return loss
 
-
-def align_loss_3d(pts, logits, tau=0.1, sink_tau=0.1):
+def align_loss_3d(pts, logits, tau=0.1, sink_tau=0.1, is_unin=False):
     """
     Compute contrastive loss between k and q using NT-Xent loss.
     Args:
-    - k (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
-    - q (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
-    - tau (float): A temperature scaling factor to control the separation of the distributions.
+    
+    k (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
+    q (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
+    tau (float): A temperature scaling factor to control the separation of the distributions.
     Returns:
-    - torch.Tensor: Scalar tensor representing the loss.
+    torch.Tensor: Scalar tensor representing the loss.
     """
-    with torch.no_grad():
-        # Compute cosine similarity as dot product of k and q across all pairs
-        scores = torch.softmax(logits / tau, dim=-1)
-        protos = torch.einsum('bnd,bnk->bkd', [pts, scores])
-        gamma = ot_assign(pts, protos, tau=sink_tau, thresh=1e-3, max_iter=10)
-        gamma = gamma / torch.sum(gamma, dim=-1, keepdim=True).clip(min=1e-3)
-    # Use log_softmax for numerical stability and compute the cross-entropy loss
-    loss = -torch.sum(gamma.detach() * torch.log_softmax(logits, dim=-1), dim=-1).mean()
+    with torch.no_grad():# Compute cosine similarity as dot product of k and q across all pairs
+        scores = torch.softmax(logits / tau, dim=1)
+        protos = torch.einsum('bnd,bnk->bkd', [pts, scores]) / torch.sum(
+            scores, dim=1).clip(min=1e-3).unsqueeze(-1)
+        gamma = ot_assign(pts, protos, tau=sink_tau, thresh=1e-3, max_iter=10, is_unin=is_unin)
+        gamma = gamma / torch.sum(gamma, dim=-1, keepdim=True).clip(min=1e-3)# Use log_softmax for numerical stability and compute the cross-entropy loss
+    loss = -torch.sum(gamma.detach() * torch.log_softmax(logits / tau, dim=-1), dim=-1).mean()
 
     return loss
+
 
 
 def contrastive_loss_2d(k, q, tau=0.1, is_norm=False):
