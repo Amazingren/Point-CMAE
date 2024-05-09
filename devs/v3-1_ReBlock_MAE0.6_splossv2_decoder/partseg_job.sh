@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=a100-40g:1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=4
 #SBATCH --mem-per-gpu=40G
 #SBATCH --output=./joblogs/v3-1_seg_ep100.log      # Redirect stdout to a log file
 #SBATCH --error=./joblogs/v3-1_seg_ep100.error     # Redirect stderr to a separate error log file
