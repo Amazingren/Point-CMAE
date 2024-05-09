@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=v1-5_seg
+#SBATCH --job-name=v2-1_seg
 #SBATCH --nodelist=gcp-eu-2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=a100-40g:1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=4
 #SBATCH --mem-per-gpu=40G
-#SBATCH --output=./joblogs/v1-5_seg_ep300.log      # Redirect stdout to a log file
-#SBATCH --error=./joblogs/v1-5_seg_ep300.error     # Redirect stderr to a separate error log file
+#SBATCH --output=./joblogs/v2-1_seg_ep250.log      # Redirect stdout to a log file
+#SBATCH --error=./joblogs/v2-1_seg_ep250.error     # Redirect stderr to a separate error log file
 
 # cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.3/lib64:$LD_LIBRARY_PATH
@@ -20,10 +20,10 @@ export PATH=/opt/modules/gcc-10.5.0/bin:$PATH
 source ~/.bashrc
 micromamba activate point
 
-cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs/v1-5_noMAE_ReBlock_sp_mask0_newloss/segmentation
+cd  /home/bin_ren/projects/pointcloud/pcd_cluster/devs/v2-1_ReBlock_MAE0.6_moco_splossv1_noProj/segmentation
 
 python main.py \
     --root /data/work-gcp-europe-west4-a/bin_ren/point-cloud/shapenetcore_partanno_segmentation_benchmark_v0_normal/ \
-    --log_dir ./exp_v1-5_noMAE_ReBlock_sp_mask0_newloss_ep300 \
-    --ckpts ../experiments/base/pretrain/v1-5_noMAE_ReBlock_sp_mask0_newloss/ckpt-epoch-300.pth \
+    --log_dir ./exp_v2-1_ReBlock_MAE0.6_moco_splossv1_noProj_ep250 \
+    --ckpts ../experiments/base/pretrain/v2-1_ReBlock_MAE0.6_moco_splossv1_noProj/ckpt-epoch-250.pth \
     --seed 0

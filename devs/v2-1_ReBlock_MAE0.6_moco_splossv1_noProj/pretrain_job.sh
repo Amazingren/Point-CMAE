@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=v2-1
+#SBATCH --job-name=v2-1_cls
 #SBATCH --nodelist=gcp-eu-2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
