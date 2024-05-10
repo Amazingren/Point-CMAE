@@ -453,7 +453,7 @@ class Point_MAE(nn.Module):
         # compute k:
         with torch.no_grad():
             self._momentum_update_key_encoder()  # update the key encoder
-            cls_token_k, x_all_k, _ = self.MAE_encoder(neighborhood, center, noaug=True)
+            cls_token_k, x_all_k, _ = self.MAE_encoder_k(neighborhood, center, noaug=True)
             cls_token_k = self.cls_head_k(cls_token_k)
 
         # --- MoCo (CE) loss:

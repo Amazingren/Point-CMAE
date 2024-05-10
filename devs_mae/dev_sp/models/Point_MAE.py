@@ -415,21 +415,21 @@ class Point_MAE(nn.Module):
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
             param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
-    @torch.no_grad()
-    def _dequeue_and_enqueue(self, keys):
-        # gather keys before updating queue
-        # keys = concat_all_gather(keys) # Only one gpu
+    # @torch.no_grad()
+    # def _dequeue_and_enqueue(self, keys):
+    #     # gather keys before updating queue
+    #     # keys = concat_all_gather(keys) # Only one gpu
 
-        batch_size = keys.shape[0]
+    #     batch_size = keys.shape[0]
 
-        ptr = int(self.queue_ptr)
-        assert self.K % batch_size == 0  # for simplicity
+    #     ptr = int(self.queue_ptr)
+    #     assert self.K % batch_size == 0  # for simplicity
 
-        # replace the keys at ptr (dequeue and enqueue)
-        self.queue[:, ptr:ptr + batch_size] = keys.T
-        ptr = (ptr + batch_size) % self.K  # move pointer
+    #     # replace the keys at ptr (dequeue and enqueue)
+    #     self.queue[:, ptr:ptr + batch_size] = keys.T
+    #     ptr = (ptr + batch_size) % self.K  # move pointer
 
-        self.queue_ptr[0] = ptr
+    #     self.queue_ptr[0] = ptr
 
     def build_loss_func(self, loss_type):
         self.loss_ce = nn.CrossEntropyLoss()
@@ -446,44 +446,64 @@ class Point_MAE(nn.Module):
 
         # compute q:
         cls_token_q, x_vis, mask = self.MAE_encoder(neighborhood, center)
-        B,_,C = x_vis.shape # B VIS C
 
-        cls_token_q = self.cls_head_q(cls_token_q)
+        # cls_token_q = self.cls_head_q(cls_token_q)
 
-        # compute k:
-        with torch.no_grad():
-            self._momentum_update_key_encoder()  # update the key encoder
-            cls_token_k, x_all_k, _ = self.MAE_encoder_k(neighborhood, center, noaug=True)
-            cls_token_k = self.cls_head_k(cls_token_k)
+        B, _, C = x_vis.shape  # B VIS C
 
-        # --- MoCo (CE) loss:
-        cls_token_q = F.normalize(cls_token_q, dim=-1)
-        cls_token_k = F.normalize(cls_token_k, dim=-1)
-        l_pos = torch.einsum('nc, nc->n', [cls_token_q, cls_token_k]).unsqueeze(-1) # n 1 
-        l_neg = torch.einsum('nc, ck->nk', [cls_token_q, self.queue.clone().detach()]) # n k
-        ce_logits = torch.cat([l_pos, l_neg], dim=1)
-        ce_logits /= self.T
-        labels = torch.zeros(l_pos.shape[0], dtype=torch.long).to(pts.device)
-        # labels = torch.arange(l_pos.shape[0], dtype=torch.long).to(pts.device)
-        moco_loss = self.loss_ce(ce_logits, labels)
-        
         pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
         pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
 
-        _,N,_ = pos_emd_mask.shape
+        _, N, _ = pos_emd_mask.shape
         mask_token = self.mask_token.expand(B, N, -1)
         x_full = torch.cat([x_vis, mask_token], dim=1)
         pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
 
         x_rec = self.MAE_decoder(x_full, pos_full, N)
 
+        # compute k:
+        with torch.no_grad():
+            self._momentum_update_key_encoder()  # update the key encoder
+            cls_token_k, x_all_k, _ = self.MAE_encoder_k(neighborhood, center, noaug=True)
+            # cls_token_k = self.cls_head_k(cls_token_k)
+
+            k_patch_feats = x_all_k
+            k_patch_norm = F.normalize(k_patch_feats, dim=-1)
+
+            cdist = torch.cdist(center, center)
+            radius = torch.topk(cdist, k=4, dim=-1, largest=False)[0][:, :, 1:].mean(dim=-1, keepdim=True)
+            mask_sp = (cdist < radius).to(cdist)
+
+            feats_dis = torch.cdist(k_patch_norm, k_patch_norm)
+            global_weight = torch.exp(-cdist / 0.5) * torch.exp(-feats_dis / 0.5)
+            mask_weight = (global_weight * mask_sp).detach()
+            neighbor_weight = mask_weight / mask_weight.sum(dim=-1, keepdim=True).clamp(min=1e-5)
+
+            k_neighbor_feats = torch.einsum('bnk,bnd->bnd', neighbor_weight, k_patch_feats)
+
+        # --- SP Loss:
+        q_patch_pred = F.normalize(x_full, dim=-1)
+        k_patch_proj = F.softmax(k_neighbor_feats / 0.1, dim=-1)
+        sp_loss = (torch.sum(-k_patch_proj.detach() * F.log_softmax(q_patch_pred / 0.1, dim=-1), dim=-1)).mean()
+
+        # --- MoCo (CE) loss:
+        # cls_token_q = F.normalize(cls_token_q, dim=-1)
+        # cls_token_k = F.normalize(cls_token_k, dim=-1)
+        # l_pos = torch.einsum('nc, nc->n', [cls_token_q, cls_token_k]).unsqueeze(-1) # n 1 
+        # l_neg = torch.einsum('nc, ck->nk', [cls_token_q, self.queue.clone().detach()]) # n k
+        # ce_logits = torch.cat([l_pos, l_neg], dim=1)
+        # ce_logits /= self.T
+        # # labels = torch.zeros(l_pos.shape[0], dtype=torch.long).to(pts.device)
+        # labels = torch.arange(l_pos.shape[0], dtype=torch.long).to(pts.device)
+        # moco_loss = self.loss_ce(ce_logits, labels)
+        
         # --- MAE loss:
         B, M, C = x_rec.shape
         rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
         gt_points = neighborhood[mask].reshape(B*M,-1,3)
         loss1 = self.loss_func(rebuild_points, gt_points)
 
-        self._dequeue_and_enqueue(cls_token_k)
+        # self._dequeue_and_enqueue(cls_token_k)
 
         if vis: #visualization
             vis_points = neighborhood[~mask].reshape(B * (self.num_group - M), -1, 3)
@@ -498,7 +518,7 @@ class Point_MAE(nn.Module):
             # return ret1, ret2
             return ret1, ret2, full_center
         else:
-            return loss1, moco_loss
+            return loss1, sp_loss
 
 
 # finetune model
