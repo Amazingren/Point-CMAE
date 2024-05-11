@@ -333,7 +333,7 @@ class MaskTransformer(nn.Module):
         x = self.blocks(x, pos)
         x = self.norm(x)
 
-        return x[:, 0], x_vis, bool_masked_pos
+        return x[:, 0], x[:, 1:], bool_masked_pos
 
 
 @MODELS.register_module()
@@ -450,10 +450,8 @@ class Point_MAE(nn.Module):
         # cls_token_q = self.cls_head_q(cls_token_q)
 
         B, _, C = x_vis.shape  # B VIS C
-
         pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
         pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
-
         _, N, _ = pos_emd_mask.shape
         mask_token = self.mask_token.expand(B, N, -1)
         x_full = torch.cat([x_vis, mask_token], dim=1)
