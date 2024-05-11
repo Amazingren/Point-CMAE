@@ -378,12 +378,12 @@ class Point_MAE(nn.Module):
             nn.Linear(self.trans_dim, 256),
             nn.GELU(),
             nn.Linear(256, 256)
-        ) 
+        )
         self.cls_head_k = nn.Sequential(
             nn.Linear(self.trans_dim, 256),
             nn.GELU(),
             nn.Linear(256, 256)
-        ) 
+        )
 
         print_log(f'[Point_MAE] divide point cloud into G{self.num_group} x S{self.group_size} points ...', logger ='Point_MAE')
         self.group_divider = Group(num_group = self.num_group, group_size = self.group_size)
@@ -405,7 +405,6 @@ class Point_MAE(nn.Module):
         self.register_buffer("queue", torch.randn(256, self.K))
         self.queue = F.normalize(self.queue, dim=0)
         self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
-
 
     @torch.no_grad()
     def _momentum_update_key_encoder(self):
