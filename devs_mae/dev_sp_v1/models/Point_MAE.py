@@ -333,7 +333,7 @@ class MaskTransformer(nn.Module):
         x = self.blocks(x, pos)
         x = self.norm(x)
 
-        return x[:, 0], x_vis, bool_masked_pos
+        return x[:, 0], x[:, 1:], bool_masked_pos
 
 
 @MODELS.register_module()
