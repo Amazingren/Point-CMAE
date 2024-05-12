@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=maesp_cls
+#SBATCH --job-name=dev_sp
 #SBATCH --nodelist=gcp-eu-2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=a100-40g:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-gpu=40G
-#SBATCH --output=./joblogs/maesp_cls_ep100.log      # Redirect stdout to a log file
-#SBATCH --error=./joblogs/maesp_cls_ep100.error     # Redirect stderr to a separate error log file
+#SBATCH --output=./joblogs/dev_sp.log      # Redirect stdout to a log file
+#SBATCH --error=./joblogs/dev_sp.error     # Redirect stderr to a separate error log file
 
 # cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.3/lib64:$LD_LIBRARY_PATH
@@ -23,8 +23,5 @@ micromamba activate point
 cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/dev_sp
 
 python main.py \
-    --config cfgs/finetune_scan_hardest.yaml \
-    --finetune_model \
-    --exp_name dev0-0_noMAE_mask0_spT_ep100 \
-    --ckpts experiments/pretrain/cfgs/dev_sp_noMAE_mask0/ckpt-epoch-100.pth \
-    --seed 0
+    --config cfgs/pretrain.yaml \
+    --exp_name dev_sp

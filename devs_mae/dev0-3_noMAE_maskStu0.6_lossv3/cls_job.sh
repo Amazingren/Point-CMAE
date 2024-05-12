@@ -25,6 +25,6 @@ cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/dev_sp
 python main.py \
     --config cfgs/finetune_scan_hardest.yaml \
     --finetune_model \
-    --exp_name dev0-0_noMAE_mask0_spT_ep100 \
-    --ckpts experiments/pretrain/cfgs/dev_sp_noMAE_mask0/ckpt-epoch-100.pth \
+    --exp_name mae_sp_ep100 \
+    --ckpts experiments/pretrain/cfgs/dev_sp/ckpt-epoch-100.pth \
     --seed 0
