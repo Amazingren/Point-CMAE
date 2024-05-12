@@ -373,16 +373,38 @@ class Point_MAE(nn.Module):
             num_heads=self.decoder_num_heads,
         )
 
-        self.cls_head_q = nn.Sequential(
-            nn.Linear(self.trans_dim, 256),
-            nn.GELU(),
-            nn.Linear(256, 256)
-        ) 
-        self.cls_head_k = nn.Sequential(
-            nn.Linear(self.trans_dim, 256),
-            nn.GELU(),
-            nn.Linear(256, 256)
-        ) 
+        self.projector = nn.Sequential(
+                nn.Linear(self.trans_dim, 256),
+                nn.LayerNorm(256),
+                nn.GELU(),
+                nn.Linear(256, 256)
+        )
+
+        self.predictor = nn.Sequential(
+                nn.Linear(256, 256),
+        )
+
+        self.projector_k = nn.Sequential(
+                nn.Linear(self.trans_dim, 256),
+                nn.LayerNorm(256),
+                nn.GELU(),
+                nn.Linear(256, 256)
+        )
+
+        for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
+            param_k.data.copy_(param_q.data)  # initialize
+            param_k.requires_grad = False  # not update by gradient
+
+        # self.cls_head_q = nn.Sequential(
+        #     nn.Linear(self.trans_dim, 256),
+        #     nn.GELU(),
+        #     nn.Linear(256, 256)
+        # ) 
+        # self.cls_head_k = nn.Sequential(
+        #     nn.Linear(self.trans_dim, 256),
+        #     nn.GELU(),
+        #     nn.Linear(256, 256)
+        # ) 
 
         print_log(f'[Point_MAE] divide point cloud into G{self.num_group} x S{self.group_size} points ...', logger ='Point_MAE')
         self.group_divider = Group(num_group = self.num_group, group_size = self.group_size)
@@ -401,10 +423,9 @@ class Point_MAE(nn.Module):
         self.build_loss_func(self.loss)
         
         # create the queue
-        self.register_buffer("queue", torch.randn(256, self.K))
-        self.queue = F.normalize(self.queue, dim=0)
-        self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
-
+        # self.register_buffer("queue", torch.randn(256, self.K))
+        # self.queue = F.normalize(self.queue, dim=0)
+        # self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
 
     @torch.no_grad()
     def _momentum_update_key_encoder(self):
@@ -413,6 +434,10 @@ class Point_MAE(nn.Module):
         """
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
             param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
+
+        for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
+            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
+
 
     # @torch.no_grad()
     # def _dequeue_and_enqueue(self, keys):
@@ -455,32 +480,35 @@ class Point_MAE(nn.Module):
         mask_token = self.mask_token.expand(B, N, -1)
         x_full = torch.cat([x_vis, mask_token], dim=1)
         pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
-
         x_rec = self.MAE_decoder(x_full, pos_full, N)
+
+        # --- local
+        q_pach_feats = x_full
+        q_patch_norm = F.normalize(q_pach_feats, dim=-1)
+
+        cdist = torch.cdist(center, center)
+        radius = torch.topk(cdist, k=6, dim=-1, largest=False)[0][:, :, 1:].mean(dim=-1, keepdim=True)
+        mask_sp = (cdist < radius).to(cdist)
+
+        feats_dis = torch.cdist(q_patch_norm, q_patch_norm)
+        global_weight = torch.exp(-cdist / 0.5) * torch.exp(-feats_dis / 0.5)
+        mask_weight = (global_weight * mask_sp).detach()
+        neighbor_weight = mask_weight / mask_weight.sum(dim=-1, keepdim=True).clamp(min=1e-5)
+
+        q_neighbor_feats = torch.einsum('bnk,bnd->bnd', neighbor_weight, q_pach_feats)
+        q_patch_proj = self.projector(q_neighbor_feats)
+        q_patch_pred = self.predictor(q_patch_proj)
 
         # compute k:
         with torch.no_grad():
             self._momentum_update_key_encoder()  # update the key encoder
             cls_token_k, x_all_k, _ = self.MAE_encoder_k(neighborhood, center, noaug=True)
             # cls_token_k = self.cls_head_k(cls_token_k)
-
-            k_patch_feats = x_all_k
-            k_patch_norm = F.normalize(k_patch_feats, dim=-1)
-
-            cdist = torch.cdist(center, center)
-            radius = torch.topk(cdist, k=4, dim=-1, largest=False)[0][:, :, 1:].mean(dim=-1, keepdim=True)
-            mask_sp = (cdist < radius).to(cdist)
-
-            feats_dis = torch.cdist(k_patch_norm, k_patch_norm)
-            global_weight = torch.exp(-cdist / 0.5) * torch.exp(-feats_dis / 0.5)
-            mask_weight = (global_weight * mask_sp).detach()
-            neighbor_weight = mask_weight / mask_weight.sum(dim=-1, keepdim=True).clamp(min=1e-5)
-
-            k_neighbor_feats = torch.einsum('bnk,bnd->bnd', neighbor_weight, k_patch_feats)
+            k_patch_proj = self.projector_k(x_all_k)
 
         # --- SP Loss:
-        q_patch_pred = F.normalize(x_full, dim=-1)
-        k_patch_proj = F.softmax(k_neighbor_feats / 0.1, dim=-1)
+        q_patch_pred = F.normalize(q_patch_pred, dim=-1)
+        k_patch_proj = F.softmax(k_patch_proj / 0.1, dim=-1)
         sp_loss = (torch.sum(-k_patch_proj.detach() * F.log_softmax(q_patch_pred / 0.1, dim=-1), dim=-1)).mean()
 
         # --- MoCo (CE) loss:
