@@ -384,10 +384,8 @@ class ReCon(nn.Module):
         # --- For MAE loss ---
 
         x_rec, q_patch_feats = self.MAE_decoder(x_full, pos_full, N)
-
         B, M, C = x_rec.shape
         rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
-
         gt_points = neighborhood[mask].reshape(B * M, -1, 3)
         losses['mdm'] = self.loss_func(rebuild_points, gt_points)
 

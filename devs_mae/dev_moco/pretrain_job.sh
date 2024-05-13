@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=moco
+#SBATCH --job-name=moco_htemp
 #SBATCH --nodelist=gcp-eu-2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=a100-40g:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-gpu=40G
-#SBATCH --output=./joblogs/moco.log      # Redirect stdout to a log file
-#SBATCH --error=./joblogs/moco.error     # Redirect stderr to a separate error log file
+#SBATCH --output=./joblogs/moco_htemp.log      # Redirect stdout to a log file
+#SBATCH --error=./joblogs/moco_htemp.error     # Redirect stderr to a separate error log file
 
 # cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.3/lib64:$LD_LIBRARY_PATH
@@ -24,4 +24,4 @@ cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/dev_moco
 
 python main.py \
     --config cfgs/pretrain.yaml \
-    --exp_name moco
+    --exp_name moco_temp0.1

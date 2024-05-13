@@ -461,6 +461,10 @@ class Point_MAE(nn.Module):
         q_pach_feats = x_full
         q_patch_norm = F.normalize(q_pach_feats, dim=-1)
 
+        # TODO
+        # center_vis = center()
+        # vis_center = center[~mask].reshape(B, -1, 3)
+
         cdist = torch.cdist(center, center)
         radius = torch.topk(cdist, k=6, dim=-1, largest=False)[0][:, :, 1:].mean(dim=-1, keepdim=True)
         mask_sp = (cdist < radius).to(cdist)

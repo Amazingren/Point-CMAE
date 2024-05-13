@@ -201,11 +201,11 @@ def run_net(args, config, train_writer=None, val_writer=None):
             builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, f'ckpt-epoch-{epoch:03d}', args,
                                     logger=logger)
 
-        if epoch % 100 == 0:
+        if epoch % 100 == 0 and epoch != 0:
             builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, f'ckpt-epoch-{epoch:03d}', args,
                                     logger=logger)
 
-        if epoch % 200 == 0:
+        if epoch % 200 == 0 and epoch != 0:
             builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, f'ckpt-epoch-{epoch:03d}', args,
                                     logger=logger)
 
