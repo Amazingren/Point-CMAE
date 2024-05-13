@@ -38,7 +38,7 @@ class PointDisDecoder(nn.Module):
             self.mlp_convs.append(nn.Linear(last_channel, out_channel))
             self.mlp_bns.append(nn.LayerNorm(out_channel))
             last_channel = out_channel
-
+        self.finalconv = nn.Linear(last_channel, last_channel)
         self.k = K
 
     def forward(self, xyz1, xyz2, points1, points2):
@@ -71,8 +71,8 @@ class PointDisDecoder(nn.Module):
             new_points = interpolated_points
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
-            new_points = F.relu(bn(conv(new_points)))
-        return new_points
+            new_points = F.tanh(bn(conv(new_points)))
+        return self.finalconv(new_points)
 
 
 class Encoder(nn.Module):   ## Embedding module

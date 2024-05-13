@@ -12,7 +12,7 @@ import random
 from knn_cuda import KNN
 from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
 from models.transformers import TransformerEncoder, TransformerDecoder, Encoder, Group, PointDisDecoder
-
+from models.losses import align_loss_3d, contrastive_loss_3d
 
 # Pretrain model
 class MaskTransformer(nn.Module):
@@ -204,7 +204,7 @@ class Point_MAE(nn.Module):
 
     def forward(self, pts, vis = False, **kwargs):
         neighborhood, center = self.group_divider(pts)
-        x_full = self.MAE_encoder(neighborhood, center, noaug = True)
+        _, k_x_full, _ = self.MAE_encoder(neighborhood, center, noaug = True)
         cls_token_q, x_vis, mask = self.MAE_encoder(neighborhood, center)
 
         B, _, C = x_vis.shape  # B VIS C
@@ -214,25 +214,26 @@ class Point_MAE(nn.Module):
         mask_token = self.mask_token.expand(B, N, -1)
         x_full = torch.cat([x_vis, mask_token], dim=1)
         pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
-
         x_rec = self.MAE_decoder(x_full, pos_full, N)
         x_rec = self.norm(x_rec)
 
         B, M, C = x_rec.shape
-        mask_points = neighborhood[mask].reshape(B, -1, 3)  # B M*group_size 3
+        # mask_points = neighborhood[mask].reshape(B, -1, 3)  # B M*group_size 3
         # B M 1024
         mask_cpts = center[mask].reshape(B, -1, 3)
-        mask_logits = self.disdecoder(mask_points, mask_cpts, None, x_rec)
-        mask_logits = F.normalize(mask_logits, dim=-1).reshape(-1, self.group_size, self.n_clusters)
+        unmask_cpts = center[~mask].reshape(B, -1, 3)
+        cts_shift = torch.cat([mask_cpts, unmask_cpts], dim=1)
+        q_x_rec = torch.cat([x_rec, x_vis], dim=1)
+        logits = self.disdecoder(pts, cts_shift, None, q_x_rec)
+
         with torch.no_grad():
             # points = neighborhood.reshape(B, -1, 3)
-            x_mask = x_full[mask].reshape(B, M, -1)
-            mask_labels = self.disdecoder(mask_points, mask_cpts, None, x_mask)
-            # mask_labels = logits[mask].reshape(B, -1, self.n_clusters)
-            mask_labels = F.normalize(mask_labels, dim=-1).detach().reshape(-1, self.group_size, self.n_clusters)
+            k_x_mask = k_x_full[mask].reshape(B, M, -1)
+            k_x = torch.cat([k_x_mask, x_vis], dim=1)
+            k_labels = self.disdecoder(pts, cts_shift, None, k_x)
 
-        loss1 = torch.sum(1 - torch.einsum('bkd,bkd->bk', mask_labels, mask_logits), dim=-1).mean()
-        loss2 = contrastive_loss_3d(x_rec, x_mask.detach(), tau=0.1, is_norm=True)
+        loss1 = align_loss_3d(logits, k_labels, num_clusters=16, tau=0.2, sink_tau=0.1)
+        loss2 = contrastive_loss_3d(x_rec, k_x_mask.detach(), tau=0.1, is_norm=True)
 
         return loss1, loss2
 
@@ -367,31 +368,3 @@ class PointTransformer(nn.Module):
         concat_f = torch.cat([x[:, 0], x[:, 1:].max(1)[0]], dim=-1)
         ret = self.cls_head_finetune(concat_f)
         return ret
-
-
-def contrastive_loss_3d(k, q, tau=0.1, is_norm=False):
-    """
-    Compute contrastive loss between k and q using NT-Xent loss.
-    Args:
-    - k (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
-    - q (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
-    - tau (float): A temperature scaling factor to control the separation of the distributions.
-    Returns:
-    - torch.Tensor: Scalar tensor representing the loss.
-    """
-    b, n, d = k.shape  # Assuming k and q have the same shape [b, n, d]
-
-    # Normalize k and q along the feature dimension
-    if is_norm:
-        k = F.normalize(k, dim=2)
-        q = F.normalize(q, dim=2)
-    # Compute cosine similarity as dot product of k and q across all pairs
-    logits = torch.einsum('bnd,bmd->bnm', [k, q]) / tau
-
-    # Create labels for positive pairs: each sample matches with its corresponding one in the other set
-    labels = torch.arange(n).repeat(b).to(logits.device)
-    labels = labels.view(b, n)
-    # Use log_softmax for numerical stability and compute the cross-entropy loss
-    loss = F.cross_entropy(logits, labels)
-
-    return loss
