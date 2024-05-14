@@ -11,8 +11,8 @@ from utils.logger import *
 import random
 from knn_cuda import KNN
 from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
-from models.transformers import TransformerEncoder, TransformerDecoder, Encoder, Group
-
+from models.transformers import TransformerEncoder, TransformerDecoder, Encoder, Group, PointDisDecoder
+from models.losses import align_loss_3d, contrastive_loss_3d
 
 # Pretrain model
 class MaskTransformer(nn.Module):
@@ -158,36 +158,14 @@ class Point_MAE(nn.Module):
         print_log(f'[Point_MAE] ', logger ='Point_MAE')
         self.config = config
         self.trans_dim = config.transformer_config.trans_dim
-        self.m = 0.999
-
         self.MAE_encoder = MaskTransformer(config)
-        self.MAE_encoder_k = MaskTransformer(config)
-        for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
-            param_k.data.copy_(param_q.data)  # initialize
-            param_k.requires_grad = False  # not update by gradient
-
-        self.projector = nn.Sequential(
-                nn.Linear(self.trans_dim, 256),
-                nn.LayerNorm(256),
-                nn.GELU(),
-                nn.Linear(256, 256)
-        )
-        self.projector_k = nn.Sequential(
-                nn.Linear(self.trans_dim, 256),
-                nn.LayerNorm(256),
-                nn.GELU(),
-                nn.Linear(256, 256)
-        )
-        self.predictor = nn.Linear(256, 256)
-
-        for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
-            param_k.data.copy_(param_q.data)  # initialize
-            param_k.requires_grad = False  # not update by gradient
-
         self.group_size = config.group_size
         self.num_group = config.num_group
         self.drop_path_rate = config.transformer_config.drop_path_rate
+        self.mask_ratio = config.transformer_config.mask_ratio # 0.6
         self.mask_token = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
+        self.n_clusters = 32
+        self.proj_dim = 128
         self.decoder_pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
@@ -207,26 +185,19 @@ class Point_MAE(nn.Module):
         print_log(f'[Point_MAE] divide point cloud into G{self.num_group} x S{self.group_size} points ...', logger ='Point_MAE')
         self.group_divider = Group(num_group = self.num_group, group_size = self.group_size)
 
-        # prediction head
-        self.increase_dim = nn.Sequential(
-            nn.Conv1d(self.trans_dim, 3*self.group_size, 1)
-        )
-
+        self.norm = nn.LayerNorm(self.trans_dim)
         trunc_normal_(self.mask_token, std=.02)
-        self.loss = config.loss
-        # loss
-        self.build_loss_func(self.loss)
-        
-    @torch.no_grad()
-    def _momentum_update_key_encoder(self):
-        """
-        Momentum update of the key encoder
-        """
-        for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
-            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
-        for param_q, param_k in zip(self.projector.parameters(), self.projector_k.parameters()):
-            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
+        # loss
+        self.loss = config.loss
+        self.build_loss_func(self.loss)
+
+        # prediction head
+        n_k = max(3, int(self.mask_ratio * self.num_group * 0.1))
+        self.disdecoder = PointDisDecoder(self.trans_dim, mlp=[2*self.proj_dim, self.proj_dim], K=n_k)
+
+        self.center = torch.randn(self.n_clusters, self.proj_dim, requires_grad=True)
+        self.center_momentum = 0.999
 
     def build_loss_func(self, loss_type):
         if loss_type == "cdl1":
@@ -237,9 +208,20 @@ class Point_MAE(nn.Module):
             raise NotImplementedError
             # self.loss_func = emd().cuda()
 
-    def forward(self, pts, vis = False, **kwargs):
-        neighborhood, center, neighborhood_aug, center_aug = self.group_divider(pts)
+    @torch.no_grad()
+    def update_center(self, center):
+        """
+        Update center used for teacher output.
+        """
+        batch_center = torch.sum(center, dim=0, keepdim=True)
+        batch_center = batch_center / (len(center))
 
+        # ema update
+        self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
+
+    def forward(self, pts, epoch, **kwargs):
+        neighborhood, center = self.group_divider(pts)
+        _, k_x_full, _ = self.MAE_encoder(neighborhood, center, noaug = True)
         cls_token_q, x_vis, mask = self.MAE_encoder(neighborhood, center)
 
         B, _, C = x_vis.shape  # B VIS C
@@ -249,53 +231,32 @@ class Point_MAE(nn.Module):
         mask_token = self.mask_token.expand(B, N, -1)
         x_full = torch.cat([x_vis, mask_token], dim=1)
         pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
-
-        # --- Online Project & Predit [bs, N, 256]
-        q_patch_proj = self.projector(x_full)
-        q_patch_pred = self.predictor(q_patch_proj)
-
-        # --- EMA Encoder and Projecter_k
-        with torch.no_grad():
-            self._momentum_update_key_encoder()  # update the key encoder
-            cls_token_k, x_vis_k, mask_k = self.MAE_encoder_k(
-                neighborhood_aug, 
-                center_aug, 
-                noaug=True
-            )
-            k_patch_proj = self.projector_k(x_vis_k)
-
-
-        # loss_byol = loss_byol_fn(q_patch_pred, k_patch_proj.detach())
-        # loss_ce = contrastive_loss_3d(q_patch_pred, k_patch_proj.detach(), tau=0.1, is_norm=True)
-
-        q_patch_pred = F.normalize(q_patch_pred, dim=-1)
-        k_patch_proj = F.softmax(k_patch_proj / 0.1, dim=-1)
-        # loss_ce = torch.sum(1 - torch.einsum('bkd,bkd->bk', q_patch_pred, k_patch_proj.detach()), dim=-1).mean()
-        loss_ce = torch.sum(-k_patch_proj.detach() * F.log_softmax(q_patch_pred / 0.1, dim=-1), dim=-1)
-        loss_ce = loss_ce.mean()
-
-        # --- MAE loss:
         x_rec = self.MAE_decoder(x_full, pos_full, N)
+        x_rec = self.norm(x_rec)
         B, M, C = x_rec.shape
-        rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
-        gt_points = neighborhood[mask].reshape(B * M,-1,3)
-        loss_recon = self.loss_func(rebuild_points, gt_points)
 
-        if vis: #visualization
-            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M), -1, 3)
-            full_vis = vis_points + center[~mask].unsqueeze(1)
-            full_rebuild = rebuild_points + center[mask].unsqueeze(1)
-            full = torch.cat([full_vis, full_rebuild], dim=0)
-            # full_points = torch.cat([rebuild_points,vis_points], dim=0)
-            full_center = torch.cat([center[mask], center[~mask]], dim=0)
-            # full = full_points + full_center.unsqueeze(1)
-            ret2 = full_vis.reshape(-1, 3).unsqueeze(0)
-            ret1 = full.reshape(-1, 3).unsqueeze(0)
-            # return ret1, ret2
-            return ret1, ret2, full_center
-        else:
-            return loss_recon, loss_ce
+        # mask_points = neighborhood[mask].reshape(B, -1, 3)  # B M*group_size 3
+        # B M 1024
+        mask_cpts = center[mask].reshape(B, -1, 3)
+        unmask_cpts = center[~mask].reshape(B, -1, 3)
+        cts_shift = torch.cat([mask_cpts, unmask_cpts], dim=1)
+        q_x_rec = torch.cat([x_rec, x_vis], dim=1)
+        logits = self.disdecoder(pts, cts_shift, None, q_x_rec)
 
+        with torch.no_grad():
+            # points = neighborhood.reshape(B, -1, 3)
+            k_x_mask = k_x_full[mask].reshape(B, M, -1)
+            k_x = torch.cat([k_x_mask, x_vis], dim=1)
+            k_labels = self.disdecoder(pts, cts_shift, None, k_x)
+            # k_labels = F.normalize(k_labels, dim=-1)
+
+        self.center = self.center.to(pts)
+        loss1 = align_loss_3d(logits, k_labels, self.center, tau=0.2, sink_tau=0.1)
+        loss2 = contrastive_loss_3d(x_rec, k_x_mask.detach(), tau=0.1, is_norm=True)
+
+        self.update_center(self.center)
+
+        return loss1, loss2
 
 # finetune model
 @MODELS.register_module()
@@ -411,7 +372,7 @@ class PointTransformer(nn.Module):
 
     def forward(self, pts):
 
-        neighborhood, center, _, _ = self.group_divider(pts)
+        neighborhood, center = self.group_divider(pts)
         group_input_tokens = self.encoder(neighborhood)  # B G N
 
         cls_tokens = self.cls_token.expand(group_input_tokens.size(0), -1, -1)
@@ -427,37 +388,3 @@ class PointTransformer(nn.Module):
         concat_f = torch.cat([x[:, 0], x[:, 1:].max(1)[0]], dim=-1)
         ret = self.cls_head_finetune(concat_f)
         return ret
-
-
-def loss_byol_fn(x, y):
-    x = F.normalize(x, dim=-1, p=2)
-    y = F.normalize(y, dim=-1, p=2)
-    loss = 2 - 2 * (x * y).sum(dim=-1)
-    return loss.mean()
-
-def contrastive_loss_3d(k, q, tau=0.1, is_norm=False):
-    """
-    Compute contrastive loss between k and q using NT-Xent loss.
-    Args:
-    - k (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
-    - q (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
-    - tau (float): A temperature scaling factor to control the separation of the distributions.
-    Returns:
-    - torch.Tensor: Scalar tensor representing the loss.
-    """
-    b, n, d = k.shape  # Assuming k and q have the same shape [b, n, d]
-
-    # Normalize k and q along the feature dimension
-    if is_norm:
-        k = F.normalize(k, dim=2)
-        q = F.normalize(q, dim=2)
-    # Compute cosine similarity as dot product of k and q across all pairs
-    logits = torch.einsum('bnd,bmd->bnm', [k, q]) / tau
-
-    # Create labels for positive pairs: each sample matches with its corresponding one in the other set
-    labels = torch.arange(n).repeat(b).to(logits.device)
-    labels = labels.view(b, n)
-    # Use log_softmax for numerical stability and compute the cross-entropy loss
-    loss = F.cross_entropy(logits, labels)
-
-    return loss

@@ -405,7 +405,7 @@ class PointTransformer(nn.Module):
 
     def forward(self, pts):
 
-        neighborhood, center = self.group_divider(pts)
+        neighborhood, center, _, _ = self.group_divider(pts)
         group_input_tokens = self.encoder(neighborhood)  # B G N
 
         cls_tokens = self.cls_token.expand(group_input_tokens.size(0), -1, -1)

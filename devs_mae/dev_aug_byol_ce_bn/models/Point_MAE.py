@@ -167,16 +167,16 @@ class Point_MAE(nn.Module):
             param_k.requires_grad = False  # not update by gradient
 
         self.projector = nn.Sequential(
-                nn.Linear(self.trans_dim, 256),
-                nn.LayerNorm(256),
-                nn.GELU(),
-                nn.Linear(256, 256)
+                nn.Conv1d(self.trans_dim, 256, 1),
+                nn.BatchNorm1d(256),
+                nn.ReLU(),
+                nn.Conv1d(256, 256, 1),
         )
         self.projector_k = nn.Sequential(
-                nn.Linear(self.trans_dim, 256),
-                nn.LayerNorm(256),
-                nn.GELU(),
-                nn.Linear(256, 256)
+                nn.Conv1d(self.trans_dim, 256, 1),
+                nn.BatchNorm1d(256),
+                nn.ReLU(),
+                nn.Conv1d(256, 256, 1),
         )
         self.predictor = nn.Linear(256, 256)
 
@@ -251,8 +251,8 @@ class Point_MAE(nn.Module):
         pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
 
         # --- Online Project & Predit [bs, N, 256]
-        q_patch_proj = self.projector(x_full)
-        q_patch_pred = self.predictor(q_patch_proj)
+        q_patch_proj = self.projector(x_full.permute(0, 2, 1))
+        q_patch_pred = self.predictor(q_patch_proj.permute(0, 2, 1))
 
         # --- EMA Encoder and Projecter_k
         with torch.no_grad():
@@ -262,17 +262,12 @@ class Point_MAE(nn.Module):
                 center_aug, 
                 noaug=True
             )
-            k_patch_proj = self.projector_k(x_vis_k)
+            k_patch_proj = self.projector_k(x_vis_k.permute(0, 2, 1))
+            k_patch_proj = k_patch_proj.permute(0, 2, 1)
 
 
-        # loss_byol = loss_byol_fn(q_patch_pred, k_patch_proj.detach())
-        # loss_ce = contrastive_loss_3d(q_patch_pred, k_patch_proj.detach(), tau=0.1, is_norm=True)
+        loss_ce = contrastive_loss_3d(q_patch_pred, k_patch_proj.detach(), tau=0.1, is_norm=True)
 
-        q_patch_pred = F.normalize(q_patch_pred, dim=-1)
-        k_patch_proj = F.softmax(k_patch_proj / 0.1, dim=-1)
-        # loss_ce = torch.sum(1 - torch.einsum('bkd,bkd->bk', q_patch_pred, k_patch_proj.detach()), dim=-1).mean()
-        loss_ce = torch.sum(-k_patch_proj.detach() * F.log_softmax(q_patch_pred / 0.1, dim=-1), dim=-1)
-        loss_ce = loss_ce.mean()
 
         # --- MAE loss:
         x_rec = self.MAE_decoder(x_full, pos_full, N)

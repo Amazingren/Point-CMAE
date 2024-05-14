@@ -232,7 +232,20 @@ class Point_MAE(nn.Module):
             k_x = torch.cat([k_x_mask, x_vis], dim=1)
             k_labels = self.disdecoder(pts, cts_shift, None, k_x)
 
-        loss1 = align_loss_3d(logits, k_labels, num_clusters=16, tau=0.2, sink_tau=0.1)
+        # loss1: v1
+        # loss1 = align_loss_3d(logits, k_labels, num_clusters=16, tau=0.2, sink_tau=0.1)
+
+        # loss1: v2
+        # logits = F.normalize(logits, dim=-1)
+        # k_labels = F.normalize(k_labels, dim=-1)
+        # loss1 = torch.sum(1 - torch.einsum('bkd,bkd->bk', logits, k_labels.detach()), dim=-1).mean()
+
+        # loss1: v3
+        q_patch_pred = F.normalize(logits, dim=-1)
+        k_patch_proj = F.softmax(k_labels / 0.1, dim=-1)
+        loss1 = torch.sum(-k_patch_proj.detach() * F.log_softmax(q_patch_pred / 0.1, dim=-1), dim=-1)
+        loss1 = loss1.mean()
+
         loss2 = contrastive_loss_3d(x_rec, k_x_mask.detach(), tau=0.1, is_norm=True)
 
         return loss1, loss2
