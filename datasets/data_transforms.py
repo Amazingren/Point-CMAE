@@ -74,7 +74,6 @@ class PointcloudTranslate(object):
             
         return pc
 
-
 class PointcloudRandomInputDropout(object):
     def __init__(self, max_dropout_ratio=0.5):
         assert max_dropout_ratio >= 0 and max_dropout_ratio < 1

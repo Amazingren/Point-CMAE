@@ -24,4 +24,5 @@ cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/dev_sp_reconFeats2
 
 python main.py \
     --config cfgs/pretrain.yaml \
-    --exp_name dev_sp_reconFeats2
+    --exp_name dev_sp_reconFeats2 \
+    --resume
