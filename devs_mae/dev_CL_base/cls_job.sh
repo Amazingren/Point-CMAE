@@ -6,8 +6,8 @@
 #SBATCH --gpus=a100-40g:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-gpu=40G
-#SBATCH --output=./joblogs/dev_CL_base_cls_ep100.log      # Redirect stdout to a log file
-#SBATCH --error=./joblogs/dev_CL_base_cls_ep100.error     # Redirect stderr to a separate error log file
+#SBATCH --output=./joblogs/dev_CL_base_cls_ep50.log      # Redirect stdout to a log file
+#SBATCH --error=./joblogs/dev_CL_base_cls_ep50.error     # Redirect stderr to a separate error log file
 
 # cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.3/lib64:$LD_LIBRARY_PATH
@@ -25,6 +25,6 @@ cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/dev_CL_base
 python main.py \
     --config cfgs/finetune_scan_hardest.yaml \
     --finetune_model \
-    --exp_name dev_CL_base \
+    --exp_name dev_CL_base_cls_ep50 \
     --ckpts experiments/pretrain/cfgs/dev_CL_base/ckpt-epoch-050.pth \
     --seed 0
