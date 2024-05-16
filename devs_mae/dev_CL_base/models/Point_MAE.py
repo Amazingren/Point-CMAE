@@ -163,6 +163,7 @@ class MaskTransformer(nn.Module):
         x = self.blocks(x, pos)
         x = self.norm(x)
 
+        # [bs, num_vis, C] -> [bs, C, num_vis] -> [bs, proj_dim, num_vis]
         x_proj = self.proj_feats(x[:, 1:].permute(0, 2, 1))
 
         return self.proj_cls(x[:, 0]), x[:, 1:], x_proj.permute(0, 2, 1), bool_masked_pos
@@ -189,6 +190,7 @@ class Point_MAE(nn.Module):
         self.num_group = config.num_group
         self.drop_path_rate = config.transformer_config.drop_path_rate
         self.mask_token = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
+        self.mask_token1 = nn.Parameter(torch.zeros(1, 1, self.pred_dim))
         self.decoder_pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
@@ -252,7 +254,7 @@ class Point_MAE(nn.Module):
         # Aug1 (scale&Translate): for mae reconstruct (masked) & Online Encoder (full)
         neighborhood_aug1, center_aug1 = self.group_divider(pts_aug1)
         # Aug2 (scanle&HorizontalFlip): for Contrastive (full) 
-        neighborhood_aug2, center_aug2 = self.group_divider(pts_aug2)
+        # neighborhood_aug2, center_aug2 = self.group_divider(pts_aug2)
 
         # <--- Online Encoder: for Aug1 (With Mask for Reconstruction) --->:
         cls_proj_aug1, x_vis_aug1, x_vis_proj_aug1, mask_aug1 = self.MAE_encoder(neighborhood_aug1, center_aug1)
@@ -274,29 +276,26 @@ class Point_MAE(nn.Module):
         # <--- Momentum Encoder (No mask for Aug1) --->:
         with torch.no_grad():
             self._momentum_update_key_encoder()  # update the key encoder
-            cls_token_q_aug1_, x_full_aug1, x_full_proj_aug1, _ = self.MAE_encoder(neighborhood_aug1, center_aug1, noaug = True)
+            cls_token_q_aug1_, x_full_aug1, x_full_proj_aug1, _ = self.MAE_encoder_k(neighborhood_aug1, center_aug1, noaug = True)
 
         # <--- Online Encoder: for Aug2 (No Mask for Contrastive) --->:
-        cls_proj_aug2, x_full_aug2, x_full_proj_aug2, mask_full_aug2 = self.MAE_encoder(neighborhood_aug2, center_aug2, noaug = True)
+        # cls_proj_aug2, x_full_aug2, x_full_proj_aug2, mask_full_aug2 = self.MAE_encoder(neighborhood_aug2, center_aug2, noaug = True)
         # TODO: 
-        # selfPatch Here For Constructing the Local-Aggregated AugFeats, 
-        # Instead of the previous Crop operation
-        # - ablation1: with full x_full_aug2
-        
-        # - ablation2: with SP-style local
 
         # ***loss2***: Contrastive loss local: Feats()
-        x_full_aug2_pred = self.pred_feats(x_full_proj_aug2.permute(0, 2, 1))
-        x_full_proj_aug1 = F.softmax(x_full_proj_aug1/0.1, dim=-1)
+        mask_token1 = self.mask_token1.expand(B, N, -1)
+        x_vis_proj_aug1 = torch.cat((x_vis_proj_aug1, mask_token1), dim=1)
+        x_vis_pred_aug1 = self.pred_feats(x_vis_proj_aug1.permute(0, 2, 1))
+        x_full_proj_aug1 = F.softmax(x_full_proj_aug1 / 0.1, dim=-1)
         loss_conrtas_local = torch.sum(
-            - x_full_proj_aug1.detach() * F.log_softmax(x_full_aug2_pred.permute(0, 2, 1) / 0.2), dim=-1
+            - x_full_proj_aug1.detach() * F.log_softmax(x_vis_pred_aug1.permute(0, 2, 1) / 0.2), dim=-1
         ).mean()
 
         # loss3: Contrastive loss global: cls_token
-        cls_pred_aug1 = self.pred_cls(cls_proj_aug1)
-        loss_contras_global =  torch.sum(
-            - cls_token_q_aug1_.detach() * F.log_softmax(cls_pred_aug1 / 0.2), dim=-1
-        ).mean()
+        # cls_pred_aug1 = self.pred_cls(cls_proj_aug1)
+        # loss_contras_global =  torch.sum(
+        #     - cls_token_q_aug1_.detach() * F.log_softmax(cls_pred_aug1 / 0.2), dim=-1
+        # ).mean()
 
         loss_contras = loss_conrtas_local
         
@@ -429,8 +428,7 @@ class PointTransformer(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, pts):
-
-        neighborhood, center, _, _ = self.group_divider(pts)
+        neighborhood, center = self.group_divider(pts)
         group_input_tokens = self.encoder(neighborhood)  # B G N
 
         cls_tokens = self.cls_token.expand(group_input_tokens.size(0), -1, -1)
@@ -453,31 +451,3 @@ def loss_byol_fn(x, y):
     y = F.normalize(y, dim=-1, p=2)
     loss = 2 - 2 * (x * y).sum(dim=-1)
     return loss.mean()
-
-
-def contrastive_loss_3d(k, q, tau=0.1, is_norm=False):
-    """
-    Compute contrastive loss between k and q using NT-Xent loss.
-    Args:
-    - k (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
-    - q (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
-    - tau (float): A temperature scaling factor to control the separation of the distributions.
-    Returns:
-    - torch.Tensor: Scalar tensor representing the loss.
-    """
-    b, n, d = k.shape  # Assuming k and q have the same shape [b, n, d]
-
-    # Normalize k and q along the feature dimension
-    if is_norm:
-        k = F.normalize(k, dim=2)
-        q = F.normalize(q, dim=2)
-    # Compute cosine similarity as dot product of k and q across all pairs
-    logits = torch.einsum('bnd,bmd->bnm', [k, q]) / tau
-
-    # Create labels for positive pairs: each sample matches with its corresponding one in the other set
-    labels = torch.arange(n).repeat(b).to(logits.device)
-    labels = labels.view(b, n)
-    # Use log_softmax for numerical stability and compute the cross-entropy loss
-    loss = F.cross_entropy(logits, labels)
-
-    return loss

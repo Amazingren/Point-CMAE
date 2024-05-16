@@ -189,6 +189,7 @@ class Point_MAE(nn.Module):
         self.num_group = config.num_group
         self.drop_path_rate = config.transformer_config.drop_path_rate
         self.mask_token = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
+        self.mask_token1 = nn.Parameter(torch.zeros(1, 1, self.pred_dim))
         self.decoder_pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
@@ -274,16 +275,11 @@ class Point_MAE(nn.Module):
         # <--- Momentum Encoder (No mask for Aug1) --->:
         with torch.no_grad():
             self._momentum_update_key_encoder()  # update the key encoder
-            cls_token_q_aug1_, x_full_aug1, x_full_proj_aug1, _ = self.MAE_encoder(neighborhood_aug1, center_aug1, noaug = True)
+            cls_token_q_aug1_, x_full_aug1, x_full_proj_aug1, _ = self.MAE_encoder_k(neighborhood_aug1, center_aug1, noaug = True)
 
         # <--- Online Encoder: for Aug2 (No Mask for Contrastive) --->:
         cls_proj_aug2, x_full_aug2, x_full_proj_aug2, mask_full_aug2 = self.MAE_encoder(neighborhood_aug2, center_aug2, noaug = True)
         # TODO: 
-        # selfPatch Here For Constructing the Local-Aggregated AugFeats, 
-        # Instead of the previous Crop operation
-        # - ablation1: with full x_full_aug2
-        
-        # - ablation2: with SP-style local
 
         # ***loss2***: Contrastive loss local: Feats()
         x_full_aug2_pred = self.pred_feats(x_full_proj_aug2.permute(0, 2, 1))
@@ -292,13 +288,22 @@ class Point_MAE(nn.Module):
             - x_full_proj_aug1.detach() * F.log_softmax(x_full_aug2_pred.permute(0, 2, 1) / 0.2), dim=-1
         ).mean()
 
-        # loss3: Contrastive loss global: cls_token
-        cls_pred_aug1 = self.pred_cls(cls_proj_aug1)
-        cls_token_q_aug1_ = F.softmax(cls_token_q_aug1_/0.1, dim=-1)
-        loss_contras_global =  torch.sum(
-            - cls_token_q_aug1_.detach() * F.log_softmax(cls_pred_aug1 / 0.2), dim=-1
+        # ***loss2***: Contrastive loss local: Feats()
+        mask_token1 = self.mask_token1.expand(B, N, -1)
+        x_vis_proj_aug1 = torch.cat((x_vis_proj_aug1, mask_token1), dim=1)
+        x_vis_pred_aug1 = self.pred_feats(x_vis_proj_aug1.permute(0, 2, 1))
+        x_full_proj_aug1 = F.softmax(x_full_proj_aug1 / 0.1, dim=-1)
+        loss_conrtas_local = torch.sum(
+            - x_full_proj_aug1.detach() * F.log_softmax(x_vis_pred_aug1.permute(0, 2, 1) / 0.2), dim=-1
         ).mean()
 
+        # loss3: Contrastive loss global: cls_token
+        cls_pred_aug2 = self.pred_cls(cls_proj_aug2)
+        cls_token_q_aug1_ = F.softmax(cls_token_q_aug1_/0.1, dim=-1)
+        loss_contras_global =  torch.sum(
+            - cls_token_q_aug1_.detach() * F.log_softmax(cls_pred_aug2 / 0.2), dim=-1
+        ).mean()
+        
         loss_contras = 0.5 * loss_conrtas_local + 1.0 * loss_contras_global
         
         if vis: #visualization

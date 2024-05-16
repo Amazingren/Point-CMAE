@@ -275,7 +275,6 @@ class Point_MAE(nn.Module):
         full_x1 = torch.cat([x_vis1, mask_token1], dim=1)
         pos_full_x1 = torch.cat([pos_emd_vis1, pos_emd_mask1], dim=1)
 
-
         # Combine Un-Masked Feats & the newly initialized Masked token for Branch2
         pos_emd_vis2 = self.decoder_pos_embed2(center[~mask2]).reshape(B, -1, C)
         pos_emd_mask2 = self.decoder_pos_embed2(center[mask2]).reshape(B, -1, C)
