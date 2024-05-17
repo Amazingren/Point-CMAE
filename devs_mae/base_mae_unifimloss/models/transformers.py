@@ -2,10 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import timm
-from timm.models.layers import DropPath, trunc_normal_
-import numpy as np
+from timm.models.layers import DropPath
 from utils import misc
+from utils.checkpoint import get_missing_parameters_message, get_unexpected_parameters_message
+from utils.logger import *
 from knn_cuda import KNN
+
 
 class Encoder(nn.Module):   ## Embedding module
     def __init__(self, encoder_channel):
@@ -42,13 +44,11 @@ class Encoder(nn.Module):   ## Embedding module
 
 
 class Group(nn.Module):  # FPS + KNN
-    def __init__(self, num_group, group_size, axis=np.array([0.0, 1.0, 0.0]), p=1):
+    def __init__(self, num_group, group_size):
         super().__init__()
         self.num_group = num_group
         self.group_size = group_size
         self.knn = KNN(k=self.group_size, transpose_mode=True)
-        self.axis = axis
-        self.p = p
 
     def forward(self, xyz):
         '''
@@ -71,8 +71,8 @@ class Group(nn.Module):  # FPS + KNN
         neighborhood = neighborhood.view(batch_size, self.num_group, self.group_size, 3).contiguous()
         # normalize
         neighborhood = neighborhood - center.unsqueeze(2)
-        
         return neighborhood, center
+
 
 ## Transformers
 class Mlp(nn.Module):
@@ -140,7 +140,7 @@ class Block(nn.Module):
         x = x + self.drop_path(self.attn(self.norm1(x)))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
-    
+
 
 class TransformerEncoder(nn.Module):
     def __init__(self, embed_dim=768, depth=4, num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None,
@@ -159,7 +159,8 @@ class TransformerEncoder(nn.Module):
         for _, block in enumerate(self.blocks):
             x = block(x + pos)
         return x
-    
+
+
 
 class TransformerDecoder(nn.Module):
     def __init__(self, embed_dim=384, depth=4, num_heads=6, mlp_ratio=4., qkv_bias=False, qk_scale=None,
@@ -194,32 +195,4 @@ class TransformerDecoder(nn.Module):
         return x
 
 
-def angle_axis(angle, axis):
-    # type: (float, np.ndarray) -> float
-    r"""Returns a 4x4 rotation matrix that performs a rotation around axis by angle
-    Parameters
-    ----------
-    angle : float
-        Angle to rotate by
-    axis: np.ndarray
-        Axis to rotate about
-    Returns
-    -------
-    torch.Tensor
-        3x3 rotation matrix
-    """
-    u = axis / np.linalg.norm(axis)
-    cosval, sinval = np.cos(angle), np.sin(angle)
 
-    # yapf: disable
-    cross_prod_mat = np.array([[0.0, -u[2], u[1]],
-                               [u[2], 0.0, -u[0]],
-                               [-u[1], u[0], 0.0]])
-
-    R = torch.from_numpy(
-        cosval * np.eye(3)
-        + sinval * cross_prod_mat
-        + (1.0 - cosval) * np.outer(u, u)
-    )
-    # yapf: enable
-    return R.float()

@@ -175,6 +175,13 @@ class TransformerDecoder(nn.Module):
         self.norm = norm_layer(embed_dim)
         self.head = nn.Identity()
 
+        self.proj_dim = 256
+        self.proj_feats = nn.Sequential(
+            nn.Linear(embed_dim, self.proj_dim),
+            nn.LayerNorm(self.proj_dim),
+            nn.GELU(),
+            nn.Linear(self.proj_dim, self.proj_dim)
+        )
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -190,36 +197,8 @@ class TransformerDecoder(nn.Module):
         for _, block in enumerate(self.blocks):
             x = block(x + pos)
 
-        x = self.head(self.norm(x[:, -return_token_num:]))  # only return the mask tokens predict pixel
-        return x
+        x_rec = self.head(self.norm(x[:, -return_token_num:]))  # only return the mask tokens predict pixel
 
+        x_proj = self.proj_feats(x.detach())
 
-def angle_axis(angle, axis):
-    # type: (float, np.ndarray) -> float
-    r"""Returns a 4x4 rotation matrix that performs a rotation around axis by angle
-    Parameters
-    ----------
-    angle : float
-        Angle to rotate by
-    axis: np.ndarray
-        Axis to rotate about
-    Returns
-    -------
-    torch.Tensor
-        3x3 rotation matrix
-    """
-    u = axis / np.linalg.norm(axis)
-    cosval, sinval = np.cos(angle), np.sin(angle)
-
-    # yapf: disable
-    cross_prod_mat = np.array([[0.0, -u[2], u[1]],
-                               [u[2], 0.0, -u[0]],
-                               [-u[1], u[0], 0.0]])
-
-    R = torch.from_numpy(
-        cosval * np.eye(3)
-        + sinval * cross_prod_mat
-        + (1.0 - cosval) * np.outer(u, u)
-    )
-    # yapf: enable
-    return R.float()
+        return x_rec, x_proj

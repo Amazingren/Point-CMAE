@@ -149,10 +149,10 @@ def run_net(args, config, train_writer=None, val_writer=None):
             if args.distributed:
                 loss_1 = dist_utils.reduce_tensor(loss_1, args)
                 loss_2 = dist_utils.reduce_tensor(loss_2, args)
-                losses.update([loss_1.item()*1000, loss_2.item()*10])
+                losses.update([loss_1.item()*1000, loss_2.item()])
 
             else:
-                losses.update([loss_1.item()*1000, loss_2.item()*10])
+                losses.update([loss_1.item()*1000, loss_2.item()])
 
 
             if args.distributed:

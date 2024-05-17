@@ -2,17 +2,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import timm
-from timm.models.layers import DropPath, trunc_normal_
+from timm.models.layers import trunc_normal_
 import numpy as np
 from .build import MODELS
-from utils import misc
 from utils.checkpoint import get_missing_parameters_message, get_unexpected_parameters_message
 from utils.logger import *
 import random
-from knn_cuda import KNN
 from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
-from models.transformers import TransformerEncoder, TransformerDecoder, Encoder, Group
-
+from models.transformers import Encoder, Group, TransformerEncoder, TransformerDecoder
+from utils.losses import uniformity_loss
 
 # Pretrain model
 class MaskTransformer(nn.Module):
@@ -26,15 +24,13 @@ class MaskTransformer(nn.Module):
         self.drop_path_rate = config.transformer_config.drop_path_rate
         self.num_heads = config.transformer_config.num_heads 
         print_log(f'[args] {config.transformer_config}', logger = 'Transformer')
-
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
-        self.cls_pos = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
-        self.cls_dim = 256
-
         # embedding
         self.encoder_dims =  config.transformer_config.encoder_dims
         self.encoder = Encoder(encoder_channel = self.encoder_dims)
         self.mask_type = config.transformer_config.mask_type
+
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
+        self.cls_pos = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
 
         self.pos_embed = nn.Sequential(
             nn.Linear(3, 128),
@@ -54,20 +50,6 @@ class MaskTransformer(nn.Module):
         self.apply(self._init_weights)
         trunc_normal_(self.cls_token, std=.02)
         trunc_normal_(self.cls_pos, std=.02)
-
-        self.proj_cls = nn.Sequential(
-            nn.Linear(self.trans_dim, self.cls_dim),
-            nn.BatchNorm1d(self.cls_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(self.cls_dim, self.cls_dim)
-        )
-
-        self.proj_feats = nn.Sequential(
-            nn.Conv1d(self.trans_dim, self.cls_dim, 1),
-            nn.BatchNorm1d(self.cls_dim),
-            nn.ReLU(inplace=True),
-            nn.Conv1d(self.cls_dim, self.cls_dim, 1),
-        )
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -163,9 +145,7 @@ class MaskTransformer(nn.Module):
         x = self.blocks(x, pos)
         x = self.norm(x)
 
-        x_proj = self.proj_feats(x[:, 1:].permute(0, 2, 1))
-
-        return self.proj_cls(x[:, 0]), x[:, 1:], x_proj.permute(0, 2, 1), bool_masked_pos
+        return x[:, 0], x[:, 1:], bool_masked_pos
 
 
 @MODELS.register_module()
@@ -175,21 +155,11 @@ class Point_MAE(nn.Module):
         print_log(f'[Point_MAE] ', logger ='Point_MAE')
         self.config = config
         self.trans_dim = config.transformer_config.trans_dim
-        self.m = 0.999
-
         self.MAE_encoder = MaskTransformer(config)
-        self.MAE_encoder_k = MaskTransformer(config)
-        for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
-            param_k.data.copy_(param_q.data)  # initialize
-            param_k.requires_grad = False  # not update by gradient
-
-        self.pred_dim = 256
-
         self.group_size = config.group_size
         self.num_group = config.num_group
         self.drop_path_rate = config.transformer_config.drop_path_rate
         self.mask_token = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
-        self.mask_token1 = nn.Parameter(torch.zeros(1, 1, self.pred_dim))
         self.decoder_pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
@@ -206,24 +176,14 @@ class Point_MAE(nn.Module):
             num_heads=self.decoder_num_heads,
         )
 
-        self.pred_cls = nn.Sequential(
-            nn.Linear(self.pred_dim, self.pred_dim),
-            nn.BatchNorm1d(self.pred_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(self.pred_dim, self.pred_dim),
-        )
-        self.pred_feats = nn.Sequential(
-            nn.Conv1d(self.pred_dim, self.pred_dim, 1),
-            nn.BatchNorm1d(self.pred_dim),
-            nn.ReLU(inplace=True),
-            nn.Conv1d(self.pred_dim, self.pred_dim, 1),
-        )
-
         print_log(f'[Point_MAE] divide point cloud into G{self.num_group} x S{self.group_size} points ...', logger ='Point_MAE')
         self.group_divider = Group(num_group = self.num_group, group_size = self.group_size)
 
         # prediction head
         self.increase_dim = nn.Sequential(
+            # nn.Conv1d(self.trans_dim, 1024, 1),
+            # nn.BatchNorm1d(1024),
+            # nn.LeakyReLU(negative_slope=0.2),
             nn.Conv1d(self.trans_dim, 3*self.group_size, 1)
         )
 
@@ -231,14 +191,6 @@ class Point_MAE(nn.Module):
         self.loss = config.loss
         # loss
         self.build_loss_func(self.loss)
-        
-    @torch.no_grad()
-    def _momentum_update_key_encoder(self):
-        """
-        Momentum update of the key encoder
-        """
-        for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
-            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
     def build_loss_func(self, loss_type):
         if loss_type == "cdl1":
@@ -249,77 +201,49 @@ class Point_MAE(nn.Module):
             raise NotImplementedError
             # self.loss_func = emd().cuda()
 
-    def forward(self, pts_aug1, pts_aug2, vis = False, **kwargs):
-        # Aug1 (scale&Translate): for mae reconstruct (masked) & Online Encoder (full)
-        neighborhood_aug1, center_aug1 = self.group_divider(pts_aug1)
-        # Aug2 (scanle&HorizontalFlip): for Contrastive (full) 
-        neighborhood_aug2, center_aug2 = self.group_divider(pts_aug2)
 
-        # <--- Online Encoder: for Aug1 (With Mask for Reconstruction) --->:
-        cls_proj_aug1, x_vis_aug1, x_vis_proj_aug1, mask_aug1 = self.MAE_encoder(neighborhood_aug1, center_aug1)
-        B, _, C = x_vis_aug1.shape  # B VIS C
-        pos_emd_vis = self.decoder_pos_embed(center_aug1[~mask_aug1]).reshape(B, -1, C)
-        pos_emd_mask = self.decoder_pos_embed(center_aug1[mask_aug1]).reshape(B, -1, C)
-        _, N, _ = pos_emd_mask.shape
+    def forward(self, pts, vis = False, **kwargs):
+        neighborhood, center = self.group_divider(pts)
+
+        cls_feats, x_vis, mask = self.MAE_encoder(neighborhood, center)
+        B,_,C = x_vis.shape # B VIS C
+
+        pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
+
+        pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
+
+        _,N,_ = pos_emd_mask.shape
         mask_token = self.mask_token.expand(B, N, -1)
-        x_full = torch.cat([x_vis_aug1, mask_token], dim=1)
+        x_full = torch.cat([x_vis, mask_token], dim=1)
         pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
 
-        # ***loss1***: MAE Reconstruct:
         x_rec = self.MAE_decoder(x_full, pos_full, N)
+
         B, M, C = x_rec.shape
         rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
-        gt_points = neighborhood_aug1[mask_aug1].reshape(B * M,-1,3)
-        loss_recon = self.loss_func(rebuild_points, gt_points)
 
-        # <--- Momentum Encoder (No mask for Aug1) --->:
-        with torch.no_grad():
-            self._momentum_update_key_encoder()  # update the key encoder
-            cls_token_q_aug1_, x_full_aug1, x_full_proj_aug1, _ = self.MAE_encoder_k(neighborhood_aug1, center_aug1, noaug = True)
+        gt_points = neighborhood[mask].reshape(B*M,-1,3)
+        loss1 = self.loss_func(rebuild_points, gt_points)
 
-        # <--- Online Encoder: for Aug2 (No Mask for Contrastive) --->:
-        cls_proj_aug2, x_full_aug2, x_full_proj_aug2, mask_full_aug2 = self.MAE_encoder(neighborhood_aug2, center_aug2, noaug = True)
-        # TODO: 
+        loss_uniform = uniformity_loss(cls_feats)
 
-        # ***loss2***: Contrastive loss local: Feats()
-        x_full_aug2_pred = self.pred_feats(x_full_proj_aug2.permute(0, 2, 1))
-        x_full_proj_aug1 = F.softmax(x_full_proj_aug1/0.1, dim=-1)
-        loss_conrtas_local = torch.sum(
-            - x_full_proj_aug1.detach() * F.log_softmax(x_full_aug2_pred.permute(0, 2, 1) / 0.2), dim=-1
-        ).mean()
-
-        # ***loss2***: Contrastive loss local: Feats()
-        mask_token1 = self.mask_token1.expand(B, N, -1)
-        x_vis_proj_aug1 = torch.cat((x_vis_proj_aug1, mask_token1), dim=1)
-        x_vis_pred_aug1 = self.pred_feats(x_vis_proj_aug1.permute(0, 2, 1))
-        x_full_proj_aug1 = F.softmax(x_full_proj_aug1 / 0.1, dim=-1)
-        loss_conrtas_local = torch.sum(
-            - x_full_proj_aug1.detach() * F.log_softmax(x_vis_pred_aug1.permute(0, 2, 1) / 0.2), dim=-1
-        ).mean()
-
-        # loss3: Contrastive loss global: cls_token
-        cls_pred_aug2 = self.pred_cls(cls_proj_aug2)
-        cls_token_q_aug1_ = F.softmax(cls_token_q_aug1_/0.1, dim=-1)
-        loss_contras_global =  torch.sum(
-            - cls_token_q_aug1_.detach() * F.log_softmax(cls_pred_aug2 / 0.2), dim=-1
-        ).mean()
+        loss1 = loss1 + 0.01 * loss_uniform
         
-        loss_contras = 0.5 * loss_conrtas_local + 1.0 * loss_contras_global
-        
+        print(loss_uniform)
         if vis: #visualization
-            vis_points = neighborhood_aug1[~mask_aug1].reshape(B * (self.num_group - M), -1, 3)
-            full_vis = vis_points + center_aug1[~mask_aug1].unsqueeze(1)
-            full_rebuild = rebuild_points + center_aug1[mask_aug1].unsqueeze(1)
+            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M), -1, 3)
+            full_vis = vis_points + center[~mask].unsqueeze(1)
+            full_rebuild = rebuild_points + center[mask].unsqueeze(1)
             full = torch.cat([full_vis, full_rebuild], dim=0)
             # full_points = torch.cat([rebuild_points,vis_points], dim=0)
-            full_center = torch.cat([center_aug1[mask_aug1], center_aug1[~mask_aug1]], dim=0)
+            full_center = torch.cat([center[mask], center[~mask]], dim=0)
             # full = full_points + full_center.unsqueeze(1)
             ret2 = full_vis.reshape(-1, 3).unsqueeze(0)
             ret1 = full.reshape(-1, 3).unsqueeze(0)
             # return ret1, ret2
             return ret1, ret2, full_center
         else:
-            return loss_recon, loss_contras
+            return loss1
 
 
 # finetune model
@@ -436,7 +360,7 @@ class PointTransformer(nn.Module):
 
     def forward(self, pts):
 
-        neighborhood, center, _, _ = self.group_divider(pts)
+        neighborhood, center = self.group_divider(pts)
         group_input_tokens = self.encoder(neighborhood)  # B G N
 
         cls_tokens = self.cls_token.expand(group_input_tokens.size(0), -1, -1)
@@ -452,38 +376,3 @@ class PointTransformer(nn.Module):
         concat_f = torch.cat([x[:, 0], x[:, 1:].max(1)[0]], dim=-1)
         ret = self.cls_head_finetune(concat_f)
         return ret
-
-
-def loss_byol_fn(x, y):
-    x = F.normalize(x, dim=-1, p=2)
-    y = F.normalize(y, dim=-1, p=2)
-    loss = 2 - 2 * (x * y).sum(dim=-1)
-    return loss.mean()
-
-
-def contrastive_loss_3d(k, q, tau=0.1, is_norm=False):
-    """
-    Compute contrastive loss between k and q using NT-Xent loss.
-    Args:
-    - k (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
-    - q (torch.Tensor): Tensor of shape [b, n, d] containing a batch of embeddings.
-    - tau (float): A temperature scaling factor to control the separation of the distributions.
-    Returns:
-    - torch.Tensor: Scalar tensor representing the loss.
-    """
-    b, n, d = k.shape  # Assuming k and q have the same shape [b, n, d]
-
-    # Normalize k and q along the feature dimension
-    if is_norm:
-        k = F.normalize(k, dim=2)
-        q = F.normalize(q, dim=2)
-    # Compute cosine similarity as dot product of k and q across all pairs
-    logits = torch.einsum('bnd,bmd->bnm', [k, q]) / tau
-
-    # Create labels for positive pairs: each sample matches with its corresponding one in the other set
-    labels = torch.arange(n).repeat(b).to(logits.device)
-    labels = labels.view(b, n)
-    # Use log_softmax for numerical stability and compute the cross-entropy loss
-    loss = F.cross_entropy(logits, labels)
-
-    return loss

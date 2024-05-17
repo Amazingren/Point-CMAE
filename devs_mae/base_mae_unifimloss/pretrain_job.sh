@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=dev_CL_base_both
+#SBATCH --job-name=base_mae_unifimloss
 #SBATCH --nodelist=gcp-eu-2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=a100-40g:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-gpu=40G
-#SBATCH --output=./joblogs/dev_CL_base_both.log      # Redirect stdout to a log file
-#SBATCH --error=./joblogs/dev_CL_base_both.error     # Redirect stderr to a separate error log file
+#SBATCH --output=./joblogs/base_mae_unifimloss.log      # Redirect stdout to a log file
+#SBATCH --error=./joblogs/base_mae_unifimloss.error     # Redirect stderr to a separate error log file
 
 # cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.3/lib64:$LD_LIBRARY_PATH
@@ -20,8 +20,8 @@ export PATH=/opt/modules/gcc-10.5.0/bin:$PATH
 source ~/.bashrc
 micromamba activate point
 
-cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/dev_CL_base_both
+cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/base_mae_unifimloss
 
 python main.py \
     --config cfgs/pretrain.yaml \
-    --exp_name dev_CL_base_both
+    --exp_name base_mae_unifimloss \

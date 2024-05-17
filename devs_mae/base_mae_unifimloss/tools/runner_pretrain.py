@@ -26,19 +26,6 @@ train_transforms = transforms.Compose(
     ]
 )
 
-train_transforms_ = transforms.Compose(
-    [
-        data_transforms.PointcloudScale(),
-        data_transforms.RandomHorizontalFlip(),
-        # data_transforms.PointcloudRotate(),
-        # data_transforms.PointcloudRotatePerturbation(),
-        # data_transforms.PointcloudTranslate(),
-        # data_transforms.PointcloudJitter(),
-        # data_transforms.PointcloudRandomInputDropout(),
-        # data_transforms.PointcloudScaleAndTranslate(),
-    ]
-)
-
 class Acc_Metric:
     def __init__(self, acc = 0.):
         if type(acc).__name__ == 'dict':
@@ -118,7 +105,7 @@ def run_net(args, config, train_writer=None, val_writer=None):
         batch_start_time = time.time()
         batch_time = AverageMeter()
         data_time = AverageMeter()
-        losses = AverageMeter(['Loss_1', 'Loss_2'])
+        losses = AverageMeter(['Loss'])
 
         num_iter = 0
 
@@ -140,18 +127,14 @@ def run_net(args, config, train_writer=None, val_writer=None):
                 raise NotImplementedError(f'Train phase do not support {dataset_name}')
 
             assert points.size(1) == npoints
-            points_aug1 = train_transforms(points) # as original
-            points_aug2 = train_transforms_(points)
-            loss_1, loss_2 = base_model(points_aug1, points_aug2)
-
-            _loss = loss_1 + loss_2
-
+            points = train_transforms(points)
+            loss = base_model(points)
             try:
-                _loss.backward()
+                loss.backward()
                 # print("Using one GPU")
             except:
-                _loss = _loss.mean()
-                _loss.backward()
+                loss = loss.mean()
+                loss.backward()
                 # print("Using multi GPUs")
 
             # forward
@@ -161,21 +144,20 @@ def run_net(args, config, train_writer=None, val_writer=None):
                 base_model.zero_grad()
 
             if args.distributed:
-                loss_1 = dist_utils.reduce_tensor(loss_1, args)
-                loss_2 = dist_utils.reduce_tensor(loss_2, args)
-                losses.update([loss_1.item()*1000, loss_2.item()*10])
-
+                loss = dist_utils.reduce_tensor(loss, args)
+                losses.update([loss.item()*1000])
             else:
-                losses.update([loss_1.item()*1000, loss_2.item()*10])
+                losses.update([loss.item()*1000])
 
 
             if args.distributed:
                 torch.cuda.synchronize()
 
+
             if train_writer is not None:
-                train_writer.add_scalar('Loss/Batch/Loss_1', loss_1.item(), n_itr)
-                train_writer.add_scalar('Loss/Batch/Loss_2', loss_2.item(), n_itr)
+                train_writer.add_scalar('Loss/Batch/Loss', loss.item(), n_itr)
                 train_writer.add_scalar('Loss/Batch/LR', optimizer.param_groups[0]['lr'], n_itr)
+
 
             batch_time.update(time.time() - batch_start_time)
             batch_start_time = time.time()
@@ -184,7 +166,6 @@ def run_net(args, config, train_writer=None, val_writer=None):
                 print_log('[Epoch %d/%d][Batch %d/%d] BatchTime = %.3f (s) DataTime = %.3f (s) Losses = %s lr = %.6f' %
                             (epoch, config.max_epoch, idx + 1, n_batches, batch_time.val(), data_time.val(),
                             ['%.4f' % l for l in losses.val()], optimizer.param_groups[0]['lr']), logger = logger)
-        
         if isinstance(scheduler, list):
             for item in scheduler:
                 item.step(epoch)
@@ -194,9 +175,6 @@ def run_net(args, config, train_writer=None, val_writer=None):
 
         if train_writer is not None:
             train_writer.add_scalar('Loss/Epoch/Loss_1', losses.avg(0), epoch)
-            train_writer.add_scalar('Loss/Epoch/Loss_2', losses.avg(1), epoch)
-
-
         print_log('[Training] EPOCH: %d EpochTime = %.3f (s) Losses = %s lr = %.6f' %
             (epoch,  epoch_end_time - epoch_start_time, ['%.4f' % l for l in losses.avg()],
              optimizer.param_groups[0]['lr']), logger = logger)
@@ -218,6 +196,8 @@ def run_net(args, config, train_writer=None, val_writer=None):
         if epoch == 50 or epoch == 100 or epoch == 200:
             builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, f'ckpt-epoch-{epoch:03d}', args,
                                     logger=logger)
+            
+            
         # if (config.max_epoch - epoch) < 10:
         #     builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, f'ckpt-epoch-{epoch:03d}', args, logger = logger)
     if train_writer is not None:
