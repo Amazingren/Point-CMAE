@@ -6,8 +6,8 @@
 #SBATCH --gpus=a100-40g:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-gpu=40G
-#SBATCH --output=./joblogs/base_mae_unifimloss_cls_ep100.log      # Redirect stdout to a log file
-#SBATCH --error=./joblogs/base_mae_unifimloss_cls_ep100.error     # Redirect stderr to a separate error log file
+#SBATCH --output=./joblogs/base_mae_unifimloss_cls_ep300.log      # Redirect stdout to a log file
+#SBATCH --error=./joblogs/base_mae_unifimloss_cls_ep300.error     # Redirect stderr to a separate error log file
 
 # cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.3/lib64:$LD_LIBRARY_PATH
@@ -25,6 +25,6 @@ cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/base_mae_unifimloss
 python main.py \
     --config cfgs/finetune_scan_hardest.yaml \
     --finetune_model \
-    --exp_name base_mae_unifimloss_ep100 \
-    --ckpts experiments/pretrain/cfgs/base_mae_unifimloss/ckpt-epoch-100.pth \
+    --exp_name base_mae_unifimloss_ep300 \
+    --ckpts experiments/pretrain/cfgs/base_mae_unifimloss/ckpt-epoch-300.pth \
     --seed 0

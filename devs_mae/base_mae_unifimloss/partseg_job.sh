@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=mae_seg
+#SBATCH --job-name=exp_mae_unifloss_ep300
 #SBATCH --nodelist=gcp-eu-2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=a100-40g:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-gpu=40G
-#SBATCH --output=./joblogs/mae_seg_ep100.log      # Redirect stdout to a log file
-#SBATCH --error=./joblogs/mae_seg_ep100.error     # Redirect stderr to a separate error log file
+#SBATCH --output=./joblogs/exp_mae_unifloss_ep300.log      # Redirect stdout to a log file
+#SBATCH --error=./joblogs/exp_mae_unifloss_ep300.error     # Redirect stderr to a separate error log file
 
 # cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.3/lib64:$LD_LIBRARY_PATH
@@ -20,9 +20,9 @@ export PATH=/opt/modules/gcc-10.5.0/bin:$PATH
 source ~/.bashrc
 micromamba activate point
 
-cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/base_mae/segmentation
+cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/base_mae_unifimloss/segmentation
 
 python main.py \
     --root /data/work-gcp-europe-west4-a/bin_ren/point-cloud/shapenetcore_partanno_segmentation_benchmark_v0_normal/ \
-    --log_dir ./exp_base_mae_ep100 \
-    --ckpts ../experiments/pretrain/cfgs/mae_reproduce/ckpt-epoch-100.pth 
+    --log_dir ./exp_mae_unifloss_ep300 \
+    --ckpts ../experiments/pretrain/cfgs/base_mae_unifimloss/ckpt-epoch-300.pth 

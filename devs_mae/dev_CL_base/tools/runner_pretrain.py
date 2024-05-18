@@ -28,8 +28,9 @@ train_transforms = transforms.Compose(
 
 train_transforms_ = transforms.Compose(
     [
-        data_transforms.PointcloudScale(),
-        data_transforms.RandomHorizontalFlip(),
+        data_transforms.PointcloudRandomCrop()
+        # data_transforms.PointcloudScale(),
+        # data_transforms.RandomHorizontalFlip(),
         # data_transforms.PointcloudRotate(),
         # data_transforms.PointcloudRotatePerturbation(),
         # data_transforms.PointcloudTranslate(),
@@ -167,7 +168,6 @@ def run_net(args, config, train_writer=None, val_writer=None):
 
             else:
                 losses.update([loss_1.item()*1000, loss_2.item()*10])
-
 
             if args.distributed:
                 torch.cuda.synchronize()

@@ -173,7 +173,7 @@ class MaskTransformer(nn.Module):
         x2 = self.blocks(x2, pos2)
         x2 = self.norm(x2)
 
-        proj_cls_x1 = self.proj_cls(x1[:, 0])
+        proj_cls_x1 = self.proj_cls(x1[:, 0]) # [bs, 384]
         proj_cls_x2 = self.proj_cls(x2[:, 0])
 
         return proj_cls_x1, x1[:, 1:], bool_masked_pos1, proj_cls_x2, x2[:, 1:], bool_masked_pos2
@@ -252,11 +252,11 @@ class Point_MAE(nn.Module):
             # self.loss_func = emd().cuda()
 
     def forward(self, pts, vis = False, **kwargs):
-        # Aug1 (scale&Translate): for mae reconstruct (masked) & Online Encoder (full)
         neighborhood, center = self.group_divider(pts) # [bs, G, M, 3], [bs, G, 3]
 
         proj_cls_x1, x_vis1, mask1, \
         proj_cls_x2, x_vis2, mask2 = self.MAE_encoder(neighborhood, center)
+
 
         # Combine Un-Masked Feats & the newly initialized Masked token for Branch1
         B, _, C = x_vis1.shape  # B VIS C
@@ -280,19 +280,17 @@ class Point_MAE(nn.Module):
         x_rec2, de_feats2_proj = self.MAE_decoder(full_x2, pos_full_x2, N2)
         B, M1, C = x_rec1.shape
 
+        # *** Reconstrction Loss ***
         rebuild_points1 = self.increase_dim(x_rec1.transpose(1, 2)).transpose(1, 2).reshape(B * M1, -1, 3)  # B M 1024
         gt_points1 = neighborhood[mask1].reshape(B * M1,-1,3) 
-
-        # *** Reconstrction Loss ***
         loss_recon = self.loss_func(rebuild_points1, gt_points1)
 
         # *** Contrastive Loss (Cross) ***
         de_feats1_proj = F.normalize(de_feats1_proj, dim=-1)
         de_feats2_proj = F.normalize(de_feats2_proj, dim=-1)
         loss_cross_contras = torch.sum(
-            mask1 * mask2 *
-            (1- torch.cosine_similarity(de_feats1_proj, de_feats2_proj, dim=-1))
-        )
+            1 - torch.cosine_similarity(de_feats1_proj, de_feats2_proj, dim=-1)[mask1 & mask2]
+        ).mean()
 
         if vis: #visualization
             # For rebuild_points1
@@ -427,7 +425,7 @@ class PointTransformer(nn.Module):
 
     def forward(self, pts):
 
-        neighborhood, center, _, _ = self.group_divider(pts)
+        neighborhood, center = self.group_divider(pts)
         group_input_tokens = self.encoder(neighborhood)  # B G N
 
         cls_tokens = self.cls_token.expand(group_input_tokens.size(0), -1, -1)
