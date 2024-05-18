@@ -1,3 +1,3 @@
-CUDA_VISIBLE_DEVICE=0 python main.py \
+CUDA_VISIBLE_DEVICES=7 python main.py \
     --config cfgs/pretrain.yaml \
     --exp_name debug

@@ -308,7 +308,7 @@ class PointcloudRandomCutout(object):
     def __call__(self, points):
         if np.random.uniform(0, 1) > self.p:
             return points
-        points = points.numpy()
+        points = points.numpy().cpu()
         try_num = 0
         valid = False
         while not valid:

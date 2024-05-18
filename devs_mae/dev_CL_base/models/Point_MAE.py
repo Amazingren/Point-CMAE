@@ -279,17 +279,20 @@ class Point_MAE(nn.Module):
             cls_token_q_aug1_, x_full_aug1, x_full_proj_aug1, _ = self.MAE_encoder_k(neighborhood_aug1, center_aug1, noaug = True)
 
         # ***loss2***: Contrastive loss local: Feats()
-        x_full_proj_aug1 = x_full_proj_aug1 * mask_aug1.expand(1, 1, 256)
-        loss_contras = torch.sum(1 - torch.einsum('bmk,bnk->bmn', x_full_proj_aug1.detach(), x_vis_proj_aug1), dim=-1)
-        loss_contras1 = loss_contras.mean()
+        x_full_proj_aug1 = x_full_proj_aug1 * mask_aug1.unsqueeze(-1).expand(-1, -1, 256)
+        x_full_proj_aug1 = F.normalize(x_full_proj_aug1, dim=-1)
+        x_vis_proj_aug1 = F.normalize(x_vis_proj_aug1, dim=-1)
+        loss_contras1 = torch.sum(1 - torch.einsum('bmk,bnk->bmn', x_full_proj_aug1.detach(), x_vis_proj_aug1), dim=-1)
+        loss_contras1 = loss_contras1.mean()
 
         # <--- Online Encoder: for Aug2 (No Mask for Contrastive) --->:
         cls_proj_aug2, x_full_aug2, x_full_proj_aug2, _ = self.MAE_encoder(neighborhood_aug2, center_aug2, noaug = True)
 
         # ***loss3***: Contrastive loss global: cls_token
-        cls_pred_aug1 = self.pred_cls(cls_proj_aug2)
+        cls_pred_aug2 = self.pred_cls(cls_proj_aug2)
+        cls_token_q_aug1_ = F.softmax(cls_token_q_aug1_, dim=-1)
         loss_contras2 =  torch.sum(
-            - cls_token_q_aug1_.detach() * F.log_softmax(cls_pred_aug1 / 0.2), dim=-1
+            - cls_token_q_aug1_.detach() * F.log_softmax(cls_pred_aug2 / 0.2), dim=-1
         ).mean()
 
         loss_contras = loss_contras1 + loss_contras2
