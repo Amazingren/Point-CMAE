@@ -175,6 +175,14 @@ class TransformerDecoder(nn.Module):
         self.norm = norm_layer(embed_dim)
         self.head = nn.Identity()
 
+        self.proj_dim = 256
+        self.proj_feats = nn.Sequential(
+            nn.Linear(embed_dim, self.proj_dim),
+            nn.LayerNorm(self.proj_dim),
+            nn.GELU(),
+            nn.Linear(self.proj_dim, self.proj_dim)
+        )
+
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -192,4 +200,4 @@ class TransformerDecoder(nn.Module):
 
         x_rec = self.head(self.norm(x[:, -return_token_num:]))  # only return the mask tokens predict pixel
 
-        return x_rec, x
+        return x_rec, self.proj_feats(x_rec)

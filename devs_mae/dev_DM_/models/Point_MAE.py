@@ -227,6 +227,9 @@ class Point_MAE(nn.Module):
         self.increase_dim = nn.Sequential(
             nn.Conv1d(self.trans_dim, 3*self.group_size, 1)
         )
+        self.increase_dim_ = nn.Sequential(
+            nn.Conv1d(self.trans_dim, 3*self.group_size, 1)
+        )
 
         trunc_normal_(self.mask_token1, std=.02)
         trunc_normal_(self.mask_token2, std=.02)
@@ -248,7 +251,6 @@ class Point_MAE(nn.Module):
 
         proj_cls_x1, x_vis1, mask1, \
         proj_cls_x2, x_vis2, mask2 = self.MAE_encoder(neighborhood, center)
-
 
         # Combine Un-Masked Feats & the newly initialized Masked token for Branch1
         B, _, C = x_vis1.shape  # B VIS C
@@ -278,7 +280,7 @@ class Point_MAE(nn.Module):
         gt_points1 = neighborhood[mask1].reshape(B * M1,-1,3) 
         loss_recon1 = self.loss_func(rebuild_points1, gt_points1)
         # *** Reconstrction Loss2 ***
-        rebuild_points2 = self.increase_dim(x_rec2.transpose(1, 2)).transpose(1, 2).reshape(B * M2, -1, 3)  # B M 1024
+        rebuild_points2 = self.increase_dim_(x_rec2.transpose(1, 2)).transpose(1, 2).reshape(B * M2, -1, 3)  # B M 1024
         gt_points2 = neighborhood[mask2].reshape(B * M2,-1,3) 
         loss_recon2 = self.loss_func(rebuild_points2, gt_points2)
         
@@ -287,14 +289,14 @@ class Point_MAE(nn.Module):
         # *** Contrastive Loss (Cross) ***
         de_feats1_proj = F.normalize(de_feats1, dim=-1)
         de_feats2_proj = F.normalize(de_feats2, dim=-1)
-        loss_cross_contras = torch.sum(
+        loss_contras = torch.sum(
             1 - torch.cosine_similarity(de_feats1_proj, de_feats2_proj, dim=-1)
-        ).mean()
+        ).mean() * 0.01
 
         if vis: #visualization
             # For rebuild_points1
             mask = mask1 # or mask2
-            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M), -1, 3)
+            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M1), -1, 3)
             full_vis = vis_points + center[~mask].unsqueeze(1)
             full_rebuild = rebuild_points1 + center[mask].unsqueeze(1)
             full = torch.cat([full_vis, full_rebuild], dim=0)
@@ -307,7 +309,7 @@ class Point_MAE(nn.Module):
             # return ret1, ret2
             return ret1, ret2, full_center
         else:
-            return loss_recon, loss_cross_contras
+            return loss_recon, loss_contras
 
 
 # finetune model
