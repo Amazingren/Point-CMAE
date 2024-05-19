@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=dev_DM_base_cls
+#SBATCH --job-name=dev_DM_base_new_ep100
 #SBATCH --nodelist=gcp-eu-2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=a100-40g:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-gpu=40G
-#SBATCH --output=./joblogs/dev_DM_base_cls_ep300.log      # Redirect stdout to a log file
-#SBATCH --error=./joblogs/dev_DM_base_cls_ep300.error     # Redirect stderr to a separate error log file
+#SBATCH --output=./joblogs/dev_DM_base_new_ep100_cls.log      # Redirect stdout to a log file
+#SBATCH --error=./joblogs/dev_DM_base_new_ep100_cls.error     # Redirect stderr to a separate error log file
 
 # cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.3/lib64:$LD_LIBRARY_PATH
@@ -25,6 +25,6 @@ cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/dev_DM_base
 python main.py \
     --config cfgs/finetune_scan_hardest.yaml \
     --finetune_model \
-    --exp_name dev_DM_base_ep300 \
-    --ckpts experiments/pretrain/cfgs/dev_DM_base/ckpt-epoch-300.pth \
+    --exp_name dev_DM_base_new_ep100 \
+    --ckpts experiments/pretrain/cfgs/dev_DM_base_new/ckpt-epoch-100.pth \
     --seed 0

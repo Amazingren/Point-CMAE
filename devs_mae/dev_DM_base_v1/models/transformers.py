@@ -199,6 +199,6 @@ class TransformerDecoder(nn.Module):
 
         x_rec = self.head(self.norm(x[:, -return_token_num:]))  # only return the mask tokens predict pixel
 
-        x_proj = self.proj_feats(x.detach())
+        x_proj = self.proj_feats(x)
 
         return x_rec, x_proj

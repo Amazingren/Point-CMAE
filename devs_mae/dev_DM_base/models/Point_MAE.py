@@ -32,7 +32,7 @@ class MaskTransformer(nn.Module):
         self.cls_pos2 = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
 
         # embedding
-        self.encoder_dims =  config.transformer_config.encoder_dims
+        self.encoder_dims = config.transformer_config.encoder_dims
         self.encoder = Encoder(encoder_channel = self.encoder_dims)
         self.mask_type = config.transformer_config.mask_type
 
@@ -257,7 +257,6 @@ class Point_MAE(nn.Module):
         proj_cls_x1, x_vis1, mask1, \
         proj_cls_x2, x_vis2, mask2 = self.MAE_encoder(neighborhood, center)
 
-
         # Combine Un-Masked Feats & the newly initialized Masked token for Branch1
         B, _, C = x_vis1.shape  # B VIS C
         pos_emd_vis1 = self.decoder_pos_embed1(center[~mask1]).reshape(B, -1, C)
@@ -289,7 +288,7 @@ class Point_MAE(nn.Module):
         de_feats1_proj = F.normalize(de_feats1_proj, dim=-1)
         de_feats2_proj = F.normalize(de_feats2_proj, dim=-1)
         loss_cross_contras = torch.sum(
-            1 - torch.cosine_similarity(de_feats1_proj, de_feats2_proj, dim=-1)[mask1 & mask2]
+            1 - torch.cosine_similarity(de_feats1_proj, de_feats2_proj, dim=-1)
         ).mean()
 
         if vis: #visualization
