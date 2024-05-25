@@ -235,6 +235,7 @@ class Point_MAE(nn.Module):
         trunc_normal_(self.mask_token2, std=.02)
         self.loss = config.loss
         # loss
+        self.contras_loss = nn.CrossEntropyLoss()
         self.build_loss_func(self.loss)
         
     def build_loss_func(self, loss_type):
@@ -287,13 +288,7 @@ class Point_MAE(nn.Module):
         loss_recon = loss_recon1 + loss_recon2
 
         # *** Contrastive Loss (Cross) ***
-        # de_feats1_proj = F.normalize(de_feats1, dim=-1)
-        # de_feats2_proj = F.normalize(de_feats2, dim=-1)
-        # loss_contras = torch.sum(torch.abs(
-        #     torch.cosine_similarity(de_feats1_proj, de_feats1_proj, dim=-1) - \
-        #     torch.cosine_similarity(de_feats2_proj, de_feats2_proj, dim=-1)
-        # )).mean()
-        loss_contras = torch.tensor(0.).to(pts.device)
+        loss_contras = info_nce_loss(torch.cat((proj_cls_x1, proj_cls_x2), dim=0))
 
         if vis: #visualization
             # For rebuild_points1
@@ -444,3 +439,40 @@ class PointTransformer(nn.Module):
         concat_f = torch.cat([x[:, 0], x[:, 1:].max(1)[0]], dim=-1)
         ret = self.cls_head_finetune(concat_f)
         return ret
+    
+def info_nce_loss(features, temperature=0.5):
+    """
+    Compute the InfoNCE loss for a batch of features.
+    
+    Args:
+        features (Tensor): A tensor of shape (2 * batch_size, feature_dim)
+        temperature (float): The temperature parameter for the softmax
+    
+    Returns:
+        Tensor: The computed InfoNCE loss
+    """
+    # Normalize the feature vectors
+    features = F.normalize(features, dim=1)
+    
+    # Compute cosine similarity matrix
+    similarity_matrix = torch.mm(features, features.t())
+    
+    # Create labels (0, 1, 2, ..., batch_size-1, 0, 1, 2, ..., batch_size-1)
+    batch_size = features.shape[0] // 2
+    labels = torch.cat([torch.arange(batch_size) for _ in range(2)], dim=0).to(features)
+    labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float()
+    
+    # Mask to remove self-comparisons
+    mask = torch.eye(labels.shape[0], dtype=torch.bool).to(features.device)
+    
+    # Apply the mask to the similarity matrix
+    labels = labels[~mask].view(labels.shape[0], -1)
+    similarity_matrix = similarity_matrix[~mask].view(similarity_matrix.shape[0], -1)
+    
+    # Compute logits
+    logits = similarity_matrix / temperature
+    
+    # Compute the InfoNCE loss
+    loss = -torch.sum(labels * F.log_softmax(logits, dim=1), dim=1).mean()
+    
+    return loss
