@@ -174,7 +174,6 @@ class TransformerDecoder(nn.Module):
             for i in range(depth)])
         self.norm = norm_layer(embed_dim)
         self.head = nn.Identity()
-        self.total_token_num = 64
 
         self.apply(self._init_weights)
 
@@ -191,10 +190,6 @@ class TransformerDecoder(nn.Module):
         for _, block in enumerate(self.blocks):
             x = block(x + pos)
 
-        x_rec_feats = x[:, -return_token_num:] # rec means previously masked
-        vis_token_num = self.total_token_num - return_token_num
-        x_vis_feats = x[:, :vis_token_num] # vis masked feats
+        x_rec = self.head(self.norm(x[:, -return_token_num:]))  # only return the mask tokens predict pixel
 
-        x_rec = self.head(self.norm(x_rec_feats))  # only return the mask tokens predict pixel
-        
-        return x_rec, x_rec_feats, x_vis_feats
+        return x_rec, x

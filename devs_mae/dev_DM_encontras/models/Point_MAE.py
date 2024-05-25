@@ -36,12 +36,7 @@ class MaskTransformer(nn.Module):
         self.encoder = Encoder(encoder_channel = self.encoder_dims)
         self.mask_type = config.transformer_config.mask_type
 
-        self.pos_embed1 = nn.Sequential(
-            nn.Linear(3, 128),
-            nn.GELU(),
-            nn.Linear(128, self.trans_dim),
-        )
-        self.pos_embed2 = nn.Sequential(
+        self.pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
             nn.Linear(128, self.trans_dim),
@@ -61,6 +56,14 @@ class MaskTransformer(nn.Module):
         trunc_normal_(self.cls_pos1, std=.02)
         trunc_normal_(self.cls_token2, std=.02)
         trunc_normal_(self.cls_pos2, std=.02)
+
+        self.proj_dim = 256
+        self.proj_cls = nn.Sequential(
+            nn.Linear(self.trans_dim, self.proj_dim),
+            nn.BatchNorm1d(self.proj_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(self.proj_dim, self.proj_dim)
+        )
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -146,13 +149,6 @@ class MaskTransformer(nn.Module):
 
         batch_size, seq_len, C = group_input_tokens.size()
 
-        # Get the mask and unmask indices
-        # [batch_size * (mask_ratio*64), 2] & [batch_size * ((1-mask_ratio)*64), 2]
-        true_indices1 = torch.nonzero(bool_masked_pos1, as_tuple=False)   # x1_mask_indices
-        false_indices1 = torch.nonzero(~bool_masked_pos1, as_tuple=False) # x1_vis_indices
-        true_indices2 = torch.nonzero(bool_masked_pos2, as_tuple=False)   # x2_mask_indices
-        false_indices2 = torch.nonzero(~bool_masked_pos2, as_tuple=False) # x2_vis_indices
-
         x_vis1 = group_input_tokens[~bool_masked_pos1].reshape(batch_size, -1, C)
         x_vis2 = group_input_tokens[~bool_masked_pos2].reshape(batch_size, -1, C)
 
@@ -161,8 +157,8 @@ class MaskTransformer(nn.Module):
         masked_center1 = center[~bool_masked_pos1].reshape(batch_size, -1, 3)
         masked_center2 = center[~bool_masked_pos2].reshape(batch_size, -1, 3)
 
-        pos1 = self.pos_embed1(masked_center1)
-        pos2 = self.pos_embed2(masked_center2)
+        pos1 = self.pos_embed(masked_center1)
+        pos2 = self.pos_embed(masked_center2)
 
         x1 = torch.cat((cls_token1, x_vis1), dim=1)
         pos1 = torch.cat((cls_pos1, pos1), dim=1)
@@ -177,7 +173,10 @@ class MaskTransformer(nn.Module):
         x2 = self.blocks(x2, pos2)
         x2 = self.norm(x2)
 
-        return x1[:, 1:], bool_masked_pos1, true_indices1, false_indices1, x2[:, 1:], bool_masked_pos2, true_indices2, false_indices2
+        proj_cls_x1 = self.proj_cls(x1[:, 0]) # [bs, 384]
+        proj_cls_x2 = self.proj_cls(x2[:, 0])
+
+        return proj_cls_x1, x1[:, 1:], bool_masked_pos1, proj_cls_x2, x2[:, 1:], bool_masked_pos2
 
 
 @MODELS.register_module()
@@ -215,25 +214,20 @@ class Point_MAE(nn.Module):
             drop_path_rate=dpr,
             num_heads=self.decoder_num_heads,
         )
-
-        self.pred_cls = nn.Sequential(
-            nn.Linear(self.pred_dim, self.pred_dim),
-            nn.BatchNorm1d(self.pred_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(self.pred_dim, self.pred_dim),
+        self.MAE_decoder_ = TransformerDecoder(
+            embed_dim=self.trans_dim,
+            depth=self.decoder_depth,
+            drop_path_rate=dpr,
+            num_heads=self.decoder_num_heads,
         )
-        self.pred_feats = nn.Sequential(
-            nn.Conv1d(self.pred_dim, self.pred_dim, 1),
-            nn.BatchNorm1d(self.pred_dim),
-            nn.ReLU(inplace=True),
-            nn.Conv1d(self.pred_dim, self.pred_dim, 1),
-        )
-
         print_log(f'[Point_MAE] divide point cloud into G{self.num_group} x S{self.group_size} points ...', logger ='Point_MAE')
         self.group_divider = Group(num_group = self.num_group, group_size = self.group_size)
 
         # prediction head
         self.increase_dim = nn.Sequential(
+            nn.Conv1d(self.trans_dim, 3*self.group_size, 1)
+        )
+        self.increase_dim_ = nn.Sequential(
             nn.Conv1d(self.trans_dim, 3*self.group_size, 1)
         )
 
@@ -255,8 +249,8 @@ class Point_MAE(nn.Module):
     def forward(self, pts, vis = False, **kwargs):
         neighborhood, center = self.group_divider(pts) # [bs, G, M, 3], [bs, G, 3]
 
-        x_vis1, mask1, true_indices1, false_indices1, \
-        x_vis2, mask2, true_indices2, false_indices2 = self.MAE_encoder(neighborhood, center)
+        proj_cls_x1, x_vis1, mask1, \
+        proj_cls_x2, x_vis2, mask2 = self.MAE_encoder(neighborhood, center)
 
         # Combine Un-Masked Feats & the newly initialized Masked token for Branch1
         B, _, C = x_vis1.shape  # B VIS C
@@ -270,42 +264,36 @@ class Point_MAE(nn.Module):
         # Combine Un-Masked Feats & the newly initialized Masked token for Branch2
         pos_emd_vis2 = self.decoder_pos_embed2(center[~mask2]).reshape(B, -1, C)
         pos_emd_mask2 = self.decoder_pos_embed2(center[mask2]).reshape(B, -1, C)
-        _, N, _ = pos_emd_mask2.shape
-        mask_token2 = self.mask_token2.expand(B, N, -1)
+        _, N2, _ = pos_emd_mask2.shape
+        mask_token2 = self.mask_token2.expand(B, N1, -1)
         full_x2 = torch.cat([x_vis2, mask_token2], dim=1)
         pos_full_x2 = torch.cat([pos_emd_vis2, pos_emd_mask2], dim=1)
 
         # [bs, M1(38), 384], [128, 64, 384]
-        x_rec1, x_rec_feats1, x_vis_feats1 = self.MAE_decoder(full_x1, pos_full_x1, N)
-        x_rec2, x_rec_feats2, x_vis_feats2 = self.MAE_decoder(full_x2, pos_full_x2, N)
+        x_rec1, de_feats1 = self.MAE_decoder(full_x1, pos_full_x1, N1)
+        x_rec2, de_feats2 = self.MAE_decoder_(full_x2, pos_full_x2, N2)
+        B, M1, C = x_rec1.shape
+        _, M2, _ = x_rec2.shape
 
-        # *** Reconstrction Loss ***
-        _, M, _ = x_rec1.shape
-        rebuild_points1 = self.increase_dim(x_rec1.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
-        gt_points1 = neighborhood[mask1].reshape(B * M,-1,3) 
-        loss_recon = self.loss_func(rebuild_points1, gt_points1)
-
-        # combine: feats_vis & feats_mask together with the original indeces
-        new_feats = torch.empty_like(full_x2)  # [batch_size, 64, 384]
-        print(new_feats)
-
-        new_feats[true_indices1[:, 0], true_indices1[:, 1], :] = x_rec_feats1
-        print("@@@@@@")
-        print("After", new_feats)
-
-
-
-        # feats_new1[batch_idx_recon1, patch_idx_1_recon1] = x_rec_feats1.view(-1, 384)
-        # feats_new1[batch_idx_vis1, patch_idx_1_vis1] = x_vis_feats1.view(-1, 384)
-
-  
+        # *** Reconstrction Loss1 ***
+        rebuild_points1 = self.increase_dim(x_rec1.transpose(1, 2)).transpose(1, 2).reshape(B * M1, -1, 3)  # B M 1024
+        gt_points1 = neighborhood[mask1].reshape(B * M1,-1,3) 
+        loss_recon1 = self.loss_func(rebuild_points1, gt_points1)
+        # *** Reconstrction Loss2 ***
+        rebuild_points2 = self.increase_dim_(x_rec2.transpose(1, 2)).transpose(1, 2).reshape(B * M2, -1, 3)  # B M 1024
+        gt_points2 = neighborhood[mask2].reshape(B * M2,-1,3) 
+        loss_recon2 = self.loss_func(rebuild_points2, gt_points2)
+        
+        loss_recon = loss_recon1 + loss_recon2
 
         # *** Contrastive Loss (Cross) ***
-        de_feats1_proj = F.normalize(de_feats1_proj, dim=-1)
-        de_feats2_proj = F.normalize(de_feats2_proj, dim=-1)
-        loss_cross_contras = torch.sum(
-            1 - torch.cosine_similarity(de_feats1_proj, de_feats2_proj, dim=-1)[mask1 & mask2]
-        ).mean()
+        # de_feats1_proj = F.normalize(de_feats1, dim=-1)
+        # de_feats2_proj = F.normalize(de_feats2, dim=-1)
+        # loss_contras = torch.sum(torch.abs(
+        #     torch.cosine_similarity(de_feats1_proj, de_feats1_proj, dim=-1) - \
+        #     torch.cosine_similarity(de_feats2_proj, de_feats2_proj, dim=-1)
+        # )).mean()
+        loss_contras = torch.tensor(0.).to(pts.device)
 
         if vis: #visualization
             # For rebuild_points1
@@ -323,7 +311,7 @@ class Point_MAE(nn.Module):
             # return ret1, ret2
             return ret1, ret2, full_center
         else:
-            return loss_recon, loss_cross_contras
+            return loss_recon, loss_contras
 
 
 # finetune model
