@@ -31,6 +31,8 @@ class MaskTransformer(nn.Module):
         self.cls_token2 = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
         self.cls_pos2 = nn.Parameter(torch.zeros(1, 1, self.trans_dim))
 
+        self.m = 0.999
+
         # embedding
         self.encoder_dims =  config.transformer_config.encoder_dims
         self.encoder = Encoder(encoder_channel = self.encoder_dims)
@@ -49,6 +51,15 @@ class MaskTransformer(nn.Module):
             drop_path_rate = dpr,
             num_heads = self.num_heads,
         )
+        self.blocks_k = TransformerEncoder(
+            embed_dim = self.trans_dim,
+            depth = self.depth,
+            drop_path_rate = dpr,
+            num_heads = self.num_heads,
+        )
+        for param_q, param_k in zip(self.blocks.parameters(), self.blocks_k.parameters()):
+            param_k.data.copy_(param_q.data)  # initialize
+            param_k.requires_grad = False  # not update by gradient
 
         self.norm = nn.LayerNorm(self.trans_dim)
         self.apply(self._init_weights)
@@ -77,6 +88,14 @@ class MaskTransformer(nn.Module):
             trunc_normal_(m.weight, std=.02)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
+
+    @torch.no_grad()
+    def _momentum_update_key_encoder(self):
+        """
+        Momentum update of the key encoder
+        """
+        for param_q, param_k in zip(self.blocks.parameters(), self.blocks_k.parameters()):
+            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
     def _mask_center_block(self, center, noaug=False):
         '''
@@ -170,8 +189,10 @@ class MaskTransformer(nn.Module):
         x1 = self.blocks(x1, pos1)
         x1 = self.norm(x1)
 
-        x2 = self.blocks(x2, pos2)
-        x2 = self.norm(x2)
+        with torch.no_grad():
+            self._momentum_update_key_encoder()
+            x2 = self.blocks_k(x2, pos2)
+            x2 = self.norm(x2)
 
         proj_cls_x1 = self.proj_cls(x1[:, 0]) # [bs, 384]
         proj_cls_x2 = self.proj_cls(x2[:, 0])
@@ -187,8 +208,7 @@ class Point_MAE(nn.Module):
         self.config = config
         self.trans_dim = config.transformer_config.trans_dim
         self.MAE_encoder = MaskTransformer(config)
-        self.pred_dim = 256
-
+        
         self.group_size = config.group_size
         self.num_group = config.num_group
         self.drop_path_rate = config.transformer_config.drop_path_rate
@@ -252,12 +272,6 @@ class Point_MAE(nn.Module):
         proj_cls_x1, x_vis1, mask1, \
         proj_cls_x2, x_vis2, mask2 = self.MAE_encoder(neighborhood, center)
 
-        #  contrastive loss
-        sim_ = F.cosine_similarity(proj_cls_x1, proj_cls_x1, dim=-1)
-        loss = torch.sum(-sim_ * F.log_softmax())
-        up = torch.exp(sim / 0.1)
-
-
         # Combine Un-Masked Feats & the newly initialized Masked token for Branch1
         B, _, C = x_vis1.shape  # B VIS C
         pos_emd_vis1 = self.decoder_pos_embed1(center[~mask1]).reshape(B, -1, C)
@@ -293,16 +307,18 @@ class Point_MAE(nn.Module):
         loss_recon = loss_recon1 + loss_recon2
 
         # *** Contrastive Loss (Cross) ***
-        de_feats1_proj = F.normalize(de_feats1, dim=-1)
-        de_feats2_proj = F.normalize(de_feats2, dim=-1)
-        loss_contras = torch.sum(
-            1 - torch.cosine_similarity(de_feats1_proj, de_feats2_proj, dim=-1)
-        ).mean() * 0.01
+        # de_feats1_proj = F.normalize(de_feats1, dim=-1)
+        # de_feats2_proj = F.normalize(de_feats2, dim=-1)
+        # loss_contras = torch.sum(torch.abs(
+        #     torch.cosine_similarity(de_feats1_proj, de_feats1_proj, dim=-1) - \
+        #     torch.cosine_similarity(de_feats2_proj, de_feats2_proj, dim=-1)
+        # )).mean()
+        loss_contras = torch.tensor(0.).to(pts.device)
 
         if vis: #visualization
             # For rebuild_points1
             mask = mask1 # or mask2
-            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M1), -1, 3)
+            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M), -1, 3)
             full_vis = vis_points + center[~mask].unsqueeze(1)
             full_rebuild = rebuild_points1 + center[mask].unsqueeze(1)
             full = torch.cat([full_vis, full_rebuild], dim=0)

@@ -252,12 +252,6 @@ class Point_MAE(nn.Module):
         proj_cls_x1, x_vis1, mask1, \
         proj_cls_x2, x_vis2, mask2 = self.MAE_encoder(neighborhood, center)
 
-        #  contrastive loss
-        sim_ = F.cosine_similarity(proj_cls_x1, proj_cls_x1, dim=-1)
-        loss = torch.sum(-sim_ * F.log_softmax())
-        up = torch.exp(sim / 0.1)
-
-
         # Combine Un-Masked Feats & the newly initialized Masked token for Branch1
         B, _, C = x_vis1.shape  # B VIS C
         pos_emd_vis1 = self.decoder_pos_embed1(center[~mask1]).reshape(B, -1, C)
@@ -290,19 +284,24 @@ class Point_MAE(nn.Module):
         gt_points2 = neighborhood[mask2].reshape(B * M2,-1,3) 
         loss_recon2 = self.loss_func(rebuild_points2, gt_points2)
         
+        # --- Contras:
+        loss_uniform = uniformity_loss(proj_cls_x1) + uniformity_loss(proj_cls_x2)
+
         loss_recon = loss_recon1 + loss_recon2
 
         # *** Contrastive Loss (Cross) ***
-        de_feats1_proj = F.normalize(de_feats1, dim=-1)
-        de_feats2_proj = F.normalize(de_feats2, dim=-1)
-        loss_contras = torch.sum(
-            1 - torch.cosine_similarity(de_feats1_proj, de_feats2_proj, dim=-1)
-        ).mean() * 0.01
+        # de_feats1_proj = F.normalize(de_feats1, dim=-1)
+        # de_feats2_proj = F.normalize(de_feats2, dim=-1)
+        # loss_contras = torch.sum(torch.abs(
+        #     torch.cosine_similarity(de_feats1_proj, de_feats1_proj, dim=-1) - \
+        #     torch.cosine_similarity(de_feats2_proj, de_feats2_proj, dim=-1)
+        # )).mean()
+        # loss_contras = torch.tensor(0.).to(pts.device)
 
         if vis: #visualization
             # For rebuild_points1
             mask = mask1 # or mask2
-            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M1), -1, 3)
+            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M), -1, 3)
             full_vis = vis_points + center[~mask].unsqueeze(1)
             full_rebuild = rebuild_points1 + center[mask].unsqueeze(1)
             full = torch.cat([full_vis, full_rebuild], dim=0)
@@ -315,7 +314,7 @@ class Point_MAE(nn.Module):
             # return ret1, ret2
             return ret1, ret2, full_center
         else:
-            return loss_recon, loss_contras
+            return loss_recon, loss_uniform
 
 
 # finetune model
@@ -448,3 +447,11 @@ class PointTransformer(nn.Module):
         concat_f = torch.cat([x[:, 0], x[:, 1:].max(1)[0]], dim=-1)
         ret = self.cls_head_finetune(concat_f)
         return ret
+    
+
+def uniformity_loss(features):
+    # calculate loss
+    features = torch.nn.functional.normalize(features)
+    sim = features @ features.T 
+    loss = sim.pow(2).mean()
+    return loss
