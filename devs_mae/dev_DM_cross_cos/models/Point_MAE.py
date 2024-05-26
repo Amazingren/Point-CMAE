@@ -141,24 +141,27 @@ class MaskTransformer(nn.Module):
             bool_masked_pos = self._mask_center_block(center, noaug = noaug)
 
         group_input_tokens = self.encoder(neighborhood)  #  B G C
-
-        cls_token1 = self.cls_token1.expand(group_input_tokens.size(0), -1, -1)
-        cls_pos1 = self.cls_pos1.expand(group_input_tokens.size(0), -1, -1)
-        cls_token2 = self.cls_token2.expand(group_input_tokens.size(0), -1, -1)
-        cls_pos2 = self.cls_pos2.expand(group_input_tokens.size(0), -1, -1)
-
         batch_size, seq_len, C = group_input_tokens.size()
 
+        # Get idx for bool_mask1 & mask2
+        mask_idx1, vis_idx1 = torch.where(bool_masked_pos1), torch.where(~bool_masked_pos1)
         x_vis1 = group_input_tokens[~bool_masked_pos1].reshape(batch_size, -1, C)
+
+        mask_idx2, vis_idx2 = torch.where(bool_masked_pos2), torch.where(~bool_masked_pos2)
         x_vis2 = group_input_tokens[~bool_masked_pos2].reshape(batch_size, -1, C)
 
         # add pos embedding
-        # mask pos center
+        # mask pos center #Actually, should be visible center!!!
         masked_center1 = center[~bool_masked_pos1].reshape(batch_size, -1, 3)
         masked_center2 = center[~bool_masked_pos2].reshape(batch_size, -1, 3)
 
         pos1 = self.pos_embed(masked_center1)
         pos2 = self.pos_embed(masked_center2)
+
+        cls_token1 = self.cls_token1.expand(group_input_tokens.size(0), -1, -1)
+        cls_pos1 = self.cls_pos1.expand(group_input_tokens.size(0), -1, -1)
+        cls_token2 = self.cls_token2.expand(group_input_tokens.size(0), -1, -1)
+        cls_pos2 = self.cls_pos2.expand(group_input_tokens.size(0), -1, -1)
 
         x1 = torch.cat((cls_token1, x_vis1), dim=1)
         pos1 = torch.cat((cls_pos1, pos1), dim=1)
@@ -176,7 +179,7 @@ class MaskTransformer(nn.Module):
         proj_cls_x1 = self.proj_cls(x1[:, 0]) # [bs, 384]
         proj_cls_x2 = self.proj_cls(x2[:, 0])
 
-        return proj_cls_x1, x1[:, 1:], bool_masked_pos1, proj_cls_x2, x2[:, 1:], bool_masked_pos2
+        return proj_cls_x1, x1[:, 1:], bool_masked_pos1, mask_idx1, vis_idx1, proj_cls_x2, x2[:, 1:], bool_masked_pos2, mask_idx2, vis_idx2
 
 
 @MODELS.register_module()
@@ -187,7 +190,6 @@ class Point_MAE(nn.Module):
         self.config = config
         self.trans_dim = config.transformer_config.trans_dim
         self.MAE_encoder = MaskTransformer(config)
-        self.pred_dim = 256
 
         self.group_size = config.group_size
         self.num_group = config.num_group
@@ -249,11 +251,11 @@ class Point_MAE(nn.Module):
     def forward(self, pts, vis = False, **kwargs):
         neighborhood, center = self.group_divider(pts) # [bs, G, M, 3], [bs, G, 3]
 
-        proj_cls_x1, x_vis1, mask1, \
-        proj_cls_x2, x_vis2, mask2 = self.MAE_encoder(neighborhood, center)
+        proj_cls_x1, x_vis1, mask1, mask_idx1, vis_idx1,\
+        proj_cls_x2, x_vis2, mask2, mask_idx2, vis_idx2 = self.MAE_encoder(neighborhood, center)
 
-        # Combine Un-Masked Feats & the newly initialized Masked token for Branch1
-        B, _, C = x_vis1.shape  # B VIS C
+        # Combine Un-Masked Feats & the newly initialized Masked token for Mask1
+        B, N_vis, C = x_vis1.shape  # B VIS C
         pos_emd_vis1 = self.decoder_pos_embed1(center[~mask1]).reshape(B, -1, C)
         pos_emd_mask1 = self.decoder_pos_embed1(center[mask1]).reshape(B, -1, C)
         _, N1, _ = pos_emd_mask1.shape
@@ -261,7 +263,7 @@ class Point_MAE(nn.Module):
         full_x1 = torch.cat([x_vis1, mask_token1], dim=1)
         pos_full_x1 = torch.cat([pos_emd_vis1, pos_emd_mask1], dim=1)
 
-        # Combine Un-Masked Feats & the newly initialized Masked token for Branch2
+        # Combine Un-Masked Feats & the newly initialized Masked token for Mask2
         pos_emd_vis2 = self.decoder_pos_embed2(center[~mask2]).reshape(B, -1, C)
         pos_emd_mask2 = self.decoder_pos_embed2(center[mask2]).reshape(B, -1, C)
         _, N2, _ = pos_emd_mask2.shape
@@ -283,15 +285,27 @@ class Point_MAE(nn.Module):
         rebuild_points2 = self.increase_dim_(x_rec2.transpose(1, 2)).transpose(1, 2).reshape(B * M2, -1, 3)  # B M 1024
         gt_points2 = neighborhood[mask2].reshape(B * M2,-1,3) 
         loss_recon2 = self.loss_func(rebuild_points2, gt_points2)
-        
+
         loss_recon = loss_recon1 + loss_recon2
 
         # *** Contrastive Loss (Cross) ***
-        de_feats1_proj = F.normalize(de_feats1, dim=-1)
-        de_feats2_proj = F.normalize(de_feats2, dim=-1)
+        # --- 1.Put the feats as the original position for mask1 branch
+        de_vis1, de_mask1 = de_feats1[:, 0:N_vis], de_feats1[:, -N1:]
+        de_feats_out1 = torch.zeros_like(full_x1)
+        de_feats_out1[vis_idx1[0], vis_idx1[1], :] = de_vis1.reshape(-1, 384)
+        de_feats_out1[mask_idx1[0], mask_idx1[1], :] = de_mask1.reshape(-1, 384)
+
+        # --- 2.Put the feats as the original position for mask2 branch
+        de_vis2, de_mask2 = de_feats2[:, 0:N_vis], de_feats1[:, -N2:]
+        de_feats_out2 = torch.zeros_like(full_x2)
+        de_feats_out2[vis_idx2[0], vis_idx2[1], :] = de_vis2.reshape(-1, 384)
+        de_feats_out2[mask_idx2[0], mask_idx2[1], :] = de_mask2.reshape(-1, 384)
+
+        comask = mask1&mask2
         loss_contras = torch.sum(
-            1 - torch.cosine_similarity(de_feats1_proj, de_feats2_proj, dim=-1)
-        ).mean() * 0.01
+           comask*(1-torch.cosine_similarity(de_feats_out1, de_feats_out2, dim=-1))
+        )
+        # loss_contras = torch.tensor(0.).to(pts.device)
 
         if vis: #visualization
             # For rebuild_points1

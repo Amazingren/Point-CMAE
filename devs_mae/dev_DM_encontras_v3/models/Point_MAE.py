@@ -235,6 +235,8 @@ class Point_MAE(nn.Module):
         trunc_normal_(self.mask_token2, std=.02)
         self.loss = config.loss
         # loss
+        # self.contras_loss = nn.CrossEntropyLoss()
+        self.contras_loss = torch.nn.SmoothL1Loss() 
         self.build_loss_func(self.loss)
         
     def build_loss_func(self, loss_type):
@@ -287,16 +289,12 @@ class Point_MAE(nn.Module):
         loss_recon = loss_recon1 + loss_recon2
 
         # *** Contrastive Loss (Cross) ***
-        de_feats1_proj = F.normalize(de_feats1, dim=-1)
-        de_feats2_proj = F.normalize(de_feats2, dim=-1)
-        loss_contras = torch.sum(
-            1 - torch.cosine_similarity(de_feats1_proj, de_feats2_proj, dim=-1)
-        ).mean() * 0.01
+        loss_contras = self.contras_loss(proj_cls_x1, proj_cls_x2)
 
         if vis: #visualization
             # For rebuild_points1
             mask = mask1 # or mask2
-            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M1), -1, 3)
+            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M), -1, 3)
             full_vis = vis_points + center[~mask].unsqueeze(1)
             full_rebuild = rebuild_points1 + center[mask].unsqueeze(1)
             full = torch.cat([full_vis, full_rebuild], dim=0)
@@ -442,3 +440,48 @@ class PointTransformer(nn.Module):
         concat_f = torch.cat([x[:, 0], x[:, 1:].max(1)[0]], dim=-1)
         ret = self.cls_head_finetune(concat_f)
         return ret
+    
+
+def info_nce_loss(features1, features2, temperature=0.5):
+    """
+    Compute the InfoNCE loss for pairs of features.
+    
+    Args:
+        features1 (Tensor): A tensor of shape (batch_size, feature_dim)
+        features2 (Tensor): A tensor of shape (batch_size, feature_dim)
+        temperature (float): The temperature parameter for the softmax
+    
+    Returns:
+        Tensor: The computed InfoNCE loss
+    """
+    batch_size = features1.shape[0]
+    
+    # Normalize the feature vectors
+    features1 = F.normalize(features1, dim=1)
+    features2 = F.normalize(features2, dim=1)
+    
+    # Compute cosine similarity matrix
+    positives = torch.sum(features1 * features2, dim=1, keepdim=True)  # Positive pairs
+    negatives1 = torch.mm(features1, features2.t())  # Cross pairs
+    negatives2 = torch.mm(features2, features1.t())  # Cross pairs
+
+    # Remove self-comparisons by creating mask
+    mask = torch.eye(batch_size, dtype=torch.bool).to(features1.device)
+
+    # Apply mask to remove self-similarities
+    negatives1.masked_fill_(mask, float('-inf'))
+    negatives2.masked_fill_(mask, float('-inf'))
+
+    # Concatenate positive and negative similarities
+    logits1 = torch.cat([positives, negatives1], dim=1) / temperature
+    logits2 = torch.cat([positives, negatives2], dim=1) / temperature
+
+    # Labels for InfoNCE
+    labels = torch.zeros(batch_size, dtype=torch.long).to(features1.device)
+
+    # Compute loss
+    loss1 = F.cross_entropy(logits1, labels)
+    loss2 = F.cross_entropy(logits2, labels)
+    loss = (loss1 + loss2) / 2
+    
+    return loss
