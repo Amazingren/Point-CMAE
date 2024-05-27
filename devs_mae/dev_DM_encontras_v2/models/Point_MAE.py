@@ -12,6 +12,7 @@ import random
 from knn_cuda import KNN
 from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
 from models.transformers import TransformerEncoder, TransformerDecoder, Encoder, Group
+from models.losses import SupConLoss
 
 # Pretrain model
 class MaskTransformer(nn.Module):
@@ -56,14 +57,6 @@ class MaskTransformer(nn.Module):
         trunc_normal_(self.cls_pos1, std=.02)
         trunc_normal_(self.cls_token2, std=.02)
         trunc_normal_(self.cls_pos2, std=.02)
-
-        self.proj_dim = 256
-        self.proj_cls = nn.Sequential(
-            nn.Linear(self.trans_dim, self.proj_dim),
-            nn.BatchNorm1d(self.proj_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(self.proj_dim, self.proj_dim)
-        )
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -173,10 +166,7 @@ class MaskTransformer(nn.Module):
         x2 = self.blocks(x2, pos2)
         x2 = self.norm(x2)
 
-        proj_cls_x1 = self.proj_cls(x1[:, 0]) # [bs, 384]
-        proj_cls_x2 = self.proj_cls(x2[:, 0])
-
-        return proj_cls_x1, x1[:, 1:], bool_masked_pos1, proj_cls_x2, x2[:, 1:], bool_masked_pos2
+        return x1[:, 0], x1[:, 1:], bool_masked_pos1, x2[:, 0], x2[:, 1:], bool_masked_pos2
 
 
 @MODELS.register_module()
@@ -231,6 +221,11 @@ class Point_MAE(nn.Module):
             nn.Conv1d(self.trans_dim, 3*self.group_size, 1)
         )
 
+        self.x1_proj = nn.Linear(self.trans_dim, 128)
+        self.x2_proj = nn.Linear(self.trans_dim, 128)
+        self.x1_proj.apply(self._init_weights)
+        self.x2_proj.apply(self._init_weights)
+
         trunc_normal_(self.mask_token1, std=.02)
         trunc_normal_(self.mask_token2, std=.02)
         self.loss = config.loss
@@ -248,11 +243,20 @@ class Point_MAE(nn.Module):
             raise NotImplementedError
             # self.loss_func = emd().cuda()
 
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.normal_(m.weight, 0.02, 0.01)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm1d):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+
     def forward(self, pts, vis = False, **kwargs):
         neighborhood, center = self.group_divider(pts) # [bs, G, M, 3], [bs, G, 3]
 
-        proj_cls_x1, x_vis1, mask1, \
-        proj_cls_x2, x_vis2, mask2 = self.MAE_encoder(neighborhood, center)
+        cls_x1, x_vis1, mask1, \
+        cls_x2, x_vis2, mask2 = self.MAE_encoder(neighborhood, center)
 
         # Combine Un-Masked Feats & the newly initialized Masked token for Branch1
         B, _, C = x_vis1.shape  # B VIS C
@@ -289,12 +293,14 @@ class Point_MAE(nn.Module):
         loss_recon = loss_recon1 + loss_recon2
 
         # *** Contrastive Loss (Cross) ***
-        loss_contras = self.contras_loss(proj_cls_x1, proj_cls_x2)
+        x1_proj = self.x1_proj(cls_x1)
+        x2_proj = self.x2_proj(cls_x2)
+        loss_contras = self.contras_loss(x1_proj, x2_proj).mean()
 
         if vis: #visualization
             # For rebuild_points1
             mask = mask1 # or mask2
-            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M), -1, 3)
+            vis_points = neighborhood[~mask].reshape(B * (self.num_group - M1), -1, 3)
             full_vis = vis_points + center[~mask].unsqueeze(1)
             full_rebuild = rebuild_points1 + center[mask].unsqueeze(1)
             full = torch.cat([full_vis, full_rebuild], dim=0)
@@ -440,48 +446,3 @@ class PointTransformer(nn.Module):
         concat_f = torch.cat([x[:, 0], x[:, 1:].max(1)[0]], dim=-1)
         ret = self.cls_head_finetune(concat_f)
         return ret
-    
-
-def info_nce_loss(features1, features2, temperature=0.5):
-    """
-    Compute the InfoNCE loss for pairs of features.
-    
-    Args:
-        features1 (Tensor): A tensor of shape (batch_size, feature_dim)
-        features2 (Tensor): A tensor of shape (batch_size, feature_dim)
-        temperature (float): The temperature parameter for the softmax
-    
-    Returns:
-        Tensor: The computed InfoNCE loss
-    """
-    batch_size = features1.shape[0]
-    
-    # Normalize the feature vectors
-    features1 = F.normalize(features1, dim=1)
-    features2 = F.normalize(features2, dim=1)
-    
-    # Compute cosine similarity matrix
-    positives = torch.sum(features1 * features2, dim=1, keepdim=True)  # Positive pairs
-    negatives1 = torch.mm(features1, features2.t())  # Cross pairs
-    negatives2 = torch.mm(features2, features1.t())  # Cross pairs
-
-    # Remove self-comparisons by creating mask
-    mask = torch.eye(batch_size, dtype=torch.bool).to(features1.device)
-
-    # Apply mask to remove self-similarities
-    negatives1.masked_fill_(mask, float('-inf'))
-    negatives2.masked_fill_(mask, float('-inf'))
-
-    # Concatenate positive and negative similarities
-    logits1 = torch.cat([positives, negatives1], dim=1) / temperature
-    logits2 = torch.cat([positives, negatives2], dim=1) / temperature
-
-    # Labels for InfoNCE
-    labels = torch.zeros(batch_size, dtype=torch.long).to(features1.device)
-
-    # Compute loss
-    loss1 = F.cross_entropy(logits1, labels)
-    loss2 = F.cross_entropy(logits2, labels)
-    loss = (loss1 + loss2) / 2
-    
-    return loss
