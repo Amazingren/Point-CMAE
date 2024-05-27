@@ -296,7 +296,7 @@ class Point_MAE(nn.Module):
         de_feats_out1[mask_idx1[0], mask_idx1[1], :] = de_mask1.reshape(-1, 384)
 
         # --- 2.Put the feats as the original position for mask2 branch
-        de_vis2, de_mask2 = de_feats2[:, 0:N_vis], de_feats1[:, -N2:]
+        de_vis2, de_mask2 = de_feats2[:, 0:N_vis], de_feats2[:, -N2:]
         de_feats_out2 = torch.zeros_like(full_x2)
         de_feats_out2[vis_idx2[0], vis_idx2[1], :] = de_vis2.reshape(-1, 384)
         de_feats_out2[mask_idx2[0], mask_idx2[1], :] = de_mask2.reshape(-1, 384)
