@@ -1,0 +1,4 @@
+NAME: ShapeNet
+DATA_PATH: /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/ShapeNet-55_MAE
+N_POINTS: 8192
+PC_PATH: /data/work-gcp-europe-west4-a/bin_ren/point-cloud/ShapeNet55-34/shapenet_pc
