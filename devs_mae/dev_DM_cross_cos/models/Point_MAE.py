@@ -301,12 +301,16 @@ class Point_MAE(nn.Module):
         de_feats_out2[vis_idx2[0], vis_idx2[1], :] = de_vis2.reshape(-1, 384)
         de_feats_out2[mask_idx2[0], mask_idx2[1], :] = de_mask2.reshape(-1, 384)
 
-        comask = mask1&mask2
+        # --- 3. Losses
+        de_feats_out1 = F.normalize(de_feats_out1, dim=-1)
+        de_feats_out2 = F.normalize(de_feats_out2, dim=-1)
+        comask = mask1&mask2 # [128, 64]
         epsilon = 1e-8
+        cos_sim = torch.bmm(de_feats_out1, de_feats_out2.transpose(1, 2))
+        comask = comask.unsqueeze(-1).expand(-1,-1, 64)
         loss_contras = torch.sum(
-           comask*(1-F.cosine_similarity(de_feats_out1, de_feats_out2, dim=-1) + epsilon)
-        )
-        # loss_contras = torch.tensor(0.).to(pts.device)
+           comask*(1 - cos_sim + epsilon)
+        )/comask.sum()
 
         if vis: #visualization
             # For rebuild_points1

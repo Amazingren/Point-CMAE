@@ -130,6 +130,7 @@ def run_net(args, config, train_writer=None, val_writer=None):
             points = train_transforms(points)
             loss_1, loss_2 = base_model(points)
 
+            loss_1 = loss_1 * 1000
             _loss = loss_1 + loss_2
 
             try:
@@ -149,10 +150,10 @@ def run_net(args, config, train_writer=None, val_writer=None):
             if args.distributed:
                 loss_1 = dist_utils.reduce_tensor(loss_1, args)
                 loss_2 = dist_utils.reduce_tensor(loss_2, args)
-                losses.update([loss_1.item()*1000, loss_2.item()*1000])
+                losses.update([loss_1.item(), loss_2.item()])
 
             else:
-                losses.update([loss_1.item()*1000, loss_2.item()*1000])
+                losses.update([loss_1.item(), loss_2.item()])
 
 
             if args.distributed:

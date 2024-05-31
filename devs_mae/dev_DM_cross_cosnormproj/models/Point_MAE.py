@@ -13,21 +13,6 @@ from knn_cuda import KNN
 from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
 from models.transformers import TransformerEncoder, TransformerDecoder, Encoder, Group
 
-
-class TwoLayerProj(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(TwoLayerProj, self).__init__()
-        self.layer1 = nn.Linear(input_dim, hidden_dim)
-        self.layer2 = nn.Linear(hidden_dim, output_dim)
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        x = self.layer1(x)
-        x = self.relu(x)
-        x = self.layer2(x)
-        return x
-
-
 # Pretrain model
 class MaskTransformer(nn.Module):
     def __init__(self, config, **kwargs):
@@ -247,8 +232,17 @@ class Point_MAE(nn.Module):
         self.increase_dim_ = nn.Sequential(
             nn.Conv1d(self.trans_dim, 3*self.group_size, 1)
         )
-        self.proj = TwoLayerProj(self.trans_dim, hidden_dim=256, output_dim=128)
-        self.proj_ = TwoLayerProj(self.trans_dim, hidden_dim=256, output_dim=128)
+        self.proj_dim = 256
+        self.proj = nn.Sequential(
+            nn.Linear(self.trans_dim,self.proj_dim),
+            nn.GELU(),
+            nn.Linear(self.proj_dim,self.proj_dim),
+        )
+        self.proj_ = nn.Sequential(
+            nn.Linear(self.trans_dim,self.proj_dim),
+            nn.GELU(),
+            nn.Linear(self.proj_dim,self.proj_dim),
+        )
 
         trunc_normal_(self.mask_token1, std=.02)
         trunc_normal_(self.mask_token2, std=.02)
@@ -320,13 +314,15 @@ class Point_MAE(nn.Module):
         
         # --- 3. Losses 
         comask = mask1&mask2
-        de_feats_out1 = F.normalize(self.proj(de_feats_out1), dim=-1)
-        de_feats_out2 = F.normalize(self.proj_(de_feats_out2), dim=-1)
+        de_feats_out1 = self.proj(F.normalize(de_feats_out1, dim=-1))
+        de_feats_out2 = self.proj_(F.normalize(de_feats_out2, dim=-1))
         epsilon = 1e-8
+        de_feats_out1, de_feats_out2 = F.normalize(de_feats_out1, dim=-1), F.normalize(de_feats_out2, dim=-1)
+        cos_sim = torch.bmm(de_feats_out1, de_feats_out2.transpose(1, 2))
+        comask = comask.unsqueeze(-1).expand(-1,-1, 64)
         loss_contras = torch.sum(
-           comask*(1-F.cosine_similarity(de_feats_out1, de_feats_out2, dim=-1) + epsilon)
-        )
-        # loss_contras = torch.tensor(0.).to(pts.device)
+           comask*(1 - cos_sim + epsilon)
+        )/comask.sum()
 
         if vis: #visualization
             # For rebuild_points1

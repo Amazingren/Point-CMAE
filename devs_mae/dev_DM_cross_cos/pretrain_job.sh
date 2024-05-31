@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=dev_DM_cross_cos
+#SBATCH --job-name=dev_DM_cross_cos_mask0.7
 #SBATCH --nodelist=gcp-eu-2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=a100-40g:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-gpu=40G
-#SBATCH --output=./joblogs/dev_DM_cross_cos.log      # Redirect stdout to a log file
-#SBATCH --error=./joblogs/dev_DM_cross_cos.error     # Redirect stderr to a separate error log file
+#SBATCH --output=./joblogs/dev_DM_cross_cos_mask0.7.log      # Redirect stdout to a log file
+#SBATCH --error=./joblogs/dev_DM_cross_cos_mask0.7.error     # Redirect stderr to a separate error log file
 
 # cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.3/lib64:$LD_LIBRARY_PATH
@@ -24,4 +24,4 @@ cd /home/bin_ren/projects/pointcloud/pcd_cluster/devs_mae/dev_DM_cross_cos
 
 python main.py \
     --config cfgs/pretrain.yaml \
-    --exp_name dev_DM_cross_cos
+    --exp_name dev_DM_cross_cos_mask0.7
