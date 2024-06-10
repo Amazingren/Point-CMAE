@@ -26,10 +26,10 @@ train_transforms = transforms.Compose(
 
 test_transforms = transforms.Compose(
     [
-        # data_transforms.PointcloudScale(),
+        data_transforms.PointcloudScale(),
         # data_transforms.PointcloudRotate(),
         # data_transforms.PointcloudTranslate(),
-        data_transforms.PointcloudScaleAndTranslate(),
+        # data_transforms.PointcloudScaleAndTranslate(),
     ]
 )
 

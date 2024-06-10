@@ -15,21 +15,21 @@ from torchvision import transforms
 train_transforms = transforms.Compose(
     [
          # data_transforms.PointcloudScale(),
-         data_transforms.PointcloudRotate(),
+        #  data_transforms.PointcloudRotate(),
          # data_transforms.PointcloudTranslate(),
          # data_transforms.PointcloudJitter(),
          # data_transforms.PointcloudRandomInputDropout(),
          # data_transforms.RandomHorizontalFlip(),
-         # data_transforms.PointcloudScaleAndTranslate(),
+         data_transforms.PointcloudScaleAndTranslate(),
     ]
 )
 
 test_transforms = transforms.Compose(
     [
         # data_transforms.PointcloudScale(),
-        data_transforms.PointcloudRotate(),
+        # data_transforms.PointcloudRotate(),
         # data_transforms.PointcloudTranslate(),
-        # data_transforms.PointcloudScaleAndTranslate(),
+        data_transforms.PointcloudScaleAndTranslate(),
     ]
 )
 
