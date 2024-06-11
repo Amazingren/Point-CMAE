@@ -10,8 +10,8 @@ from utils.checkpoint import get_missing_parameters_message, get_unexpected_para
 from utils.logger import *
 import random
 from knn_cuda import KNN
-from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
 from models.transformers import TransformerEncoder, TransformerDecoder, Encoder, Group
+from pytorch3d.loss import chamfer_distance
 
 
 # Pretrain model
@@ -229,10 +229,7 @@ class Point_MAE(nn.Module):
         )
 
         trunc_normal_(self.mask_token, std=.02)
-        self.loss = config.loss
-        # loss
-        self.build_loss_func(self.loss)
-        
+
     @torch.no_grad()
     def _momentum_update_key_encoder(self):
         """
@@ -240,15 +237,6 @@ class Point_MAE(nn.Module):
         """
         for param_q, param_k in zip(self.MAE_encoder.parameters(), self.MAE_encoder_k.parameters()):
             param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
-
-    def build_loss_func(self, loss_type):
-        if loss_type == "cdl1":
-            self.loss_func = ChamferDistanceL1().cuda()
-        elif loss_type =='cdl2':
-            self.loss_func = ChamferDistanceL2().cuda()
-        else:
-            raise NotImplementedError
-            # self.loss_func = emd().cuda()
 
     def forward(self, pts_aug1, pts_aug2, vis = False, **kwargs):
         # Aug1 (scale&Translate): for mae reconstruct (masked) & Online Encoder (full)

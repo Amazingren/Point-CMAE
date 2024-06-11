@@ -12,6 +12,7 @@ import random
 from knn_cuda import KNN
 # from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
 from models.transformers import TransformerEncoder, TransformerDecoder, Encoder, Group
+from pytorch3d.loss import chamfer_distance
 
 # Pretrain model
 class MaskTransformer(nn.Module):
@@ -158,10 +159,7 @@ class MaskTransformer(nn.Module):
 
         proj_cls = self.proj_cls(x[:, 0]) # [bs, 384]
 
-        if noaug == True:
-            return proj_cls
-        else:
-            return proj_cls, x[:, 1:], bool_masked_pos
+        return proj_cls, x[:, 1:], bool_masked_pos
 
 
 @MODELS.register_module()
@@ -221,18 +219,6 @@ class Point_MAE(nn.Module):
 
         trunc_normal_(self.mask_token1, std=.02)
         trunc_normal_(self.mask_token2, std=.02)
-        self.loss = config.loss
-        # loss
-        self.build_loss_func(self.loss)
-        
-    def build_loss_func(self, loss_type):
-        if loss_type == "cdl1":
-            self.loss_func = ChamferDistanceL1().cuda()
-        elif loss_type =='cdl2':
-            self.loss_func = ChamferDistanceL2().cuda()
-        else:
-            raise NotImplementedError
-            # self.loss_func = emd().cuda()
 
     @torch.no_grad()
     def _momentum_update_key_encoder(self):
@@ -263,10 +249,11 @@ class Point_MAE(nn.Module):
         # *** Reconstrction Loss1 ***
         rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
         gt_points = neighborhood[mask].reshape(B * M,-1,3) 
-        loss_recon = self.loss_func(rebuild_points, gt_points)
+        loss_recon = chamfer_distance(rebuild_points, gt_points, norm=2)[0]
+
 
         with torch.no_grad():
-            proj_cls_t = self.MAE_encoder_(neighborhood, center, noaug=True)
+            proj_cls_t, x_all, _ = self.MAE_encoder_(neighborhood, center, noaug=True)
             proj_cls_t = F.normalize(proj_cls_t, dim=1)
             self._momentum_update_key_encoder()  # update the key encoder
 

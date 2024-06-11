@@ -316,7 +316,7 @@ class Point_MAE(nn.Module):
            comask*(1 - cos_sim + epsilon)
         )/comask.sum()
         reg = torch.norm(de_feats_out1, p=2) + torch.norm(de_feats_out1, p=2)
-        loss_contras = loss_contras + 0.001 * reg
+        loss_contras = loss_contras + 0.0005 * reg
 
         if vis: #visualization
             # For rebuild_points1
