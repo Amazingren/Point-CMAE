@@ -10,7 +10,7 @@ from utils.checkpoint import get_missing_parameters_message, get_unexpected_para
 from utils.logger import *
 import random
 from knn_cuda import KNN
-from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
+# from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
 from models.transformers import TransformerEncoder, TransformerDecoder, Encoder, Group
 
 # Pretrain model
@@ -235,18 +235,18 @@ class Point_MAE(nn.Module):
 
         trunc_normal_(self.mask_token1, std=.02)
         trunc_normal_(self.mask_token2, std=.02)
-        self.loss = config.loss
-        # loss
-        self.build_loss_func(self.loss)
+    #     self.loss = config.loss
+    #     # loss
+    #     self.build_loss_func(self.loss)
         
-    def build_loss_func(self, loss_type):
-        if loss_type == "cdl1":
-            self.loss_func = ChamferDistanceL1().cuda()
-        elif loss_type =='cdl2':
-            self.loss_func = ChamferDistanceL2().cuda()
-        else:
-            raise NotImplementedError
-            # self.loss_func = emd().cuda()
+    # def build_loss_func(self, loss_type):
+    #     if loss_type == "cdl1":
+    #         self.loss_func = ChamferDistanceL1().cuda()
+    #     elif loss_type =='cdl2':
+    #         self.loss_func = ChamferDistanceL2().cuda()
+    #     else:
+    #         raise NotImplementedError
+    #         # self.loss_func = emd().cuda()
 
     def forward(self, pts, vis = False, **kwargs):
         neighborhood, center = self.group_divider(pts) # [bs, G, M, 3], [bs, G, 3]
