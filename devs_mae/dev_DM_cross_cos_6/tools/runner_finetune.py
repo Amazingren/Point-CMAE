@@ -26,10 +26,10 @@ train_transforms = transforms.Compose(
 
 test_transforms = transforms.Compose(
     [
-        data_transforms.PointcloudScale(),
+        # data_transforms.PointcloudScale(),
         # data_transforms.PointcloudRotate(),
         # data_transforms.PointcloudTranslate(),
-        # data_transforms.PointcloudScaleAndTranslate(),
+        data_transforms.PointcloudScaleAndTranslate(),
     ]
 )
 
@@ -62,6 +62,11 @@ def run_net(args, config, train_writer=None, val_writer=None):
     # build model
     base_model = builder.model_builder(config.model)
     
+    if config.model.type != "full":
+        for name, param in base_model.named_parameters():
+            if not 'cls' in name:
+                param.requires_grad = False
+
     # parameter setting
     start_epoch = 0
     best_metrics = Acc_Metric(0.)

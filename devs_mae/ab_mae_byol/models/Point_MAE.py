@@ -404,24 +404,25 @@ class Point_MAE(nn.Module):
         q_proj = self.predictor(q_cls_token)
         q_proj = F.normalize(q_proj, dim=-1)
 
-        B,_,C = x_vis.shape # B VIS C
+        # B,_,C = x_vis.shape # B VIS C
+        # pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
+        # pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
 
-        pos_emd_vis = self.decoder_pos_embed(center[~mask]).reshape(B, -1, C)
-        pos_emd_mask = self.decoder_pos_embed(center[mask]).reshape(B, -1, C)
+        # _,N,_ = pos_emd_mask.shape
+        # mask_token = self.mask_token.expand(B, N, -1)
+        # x_full = torch.cat([x_vis, mask_token], dim=1)
+        # pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
 
-        _,N,_ = pos_emd_mask.shape
-        mask_token = self.mask_token.expand(B, N, -1)
-        x_full = torch.cat([x_vis, mask_token], dim=1)
-        pos_full = torch.cat([pos_emd_vis, pos_emd_mask], dim=1)
+        # x_rec = self.MAE_decoder(x_full, pos_full, N)
 
-        x_rec = self.MAE_decoder(x_full, pos_full, N)
+        # B, M, C = x_rec.shape
+        # rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
 
-        B, M, C = x_rec.shape
-        rebuild_points = self.increase_dim(x_rec.transpose(1, 2)).transpose(1, 2).reshape(B * M, -1, 3)  # B M 1024
-
-        gt_points = neighborhood[mask].reshape(B*M,-1,3)
+        # gt_points = neighborhood[mask].reshape(B*M,-1,3)
         # loss1 = self.loss_func(rebuild_points, gt_points)
-        loss1 = chamfer_distance(rebuild_points, gt_points, norm=2)[0]
+        # loss1 = chamfer_distance(rebuild_points, gt_points, norm=2)[0]
+
+        loss1 = torch.tensor(0.).to(pts.device)
 
         # ce loss with moco contrast
         with torch.no_grad():

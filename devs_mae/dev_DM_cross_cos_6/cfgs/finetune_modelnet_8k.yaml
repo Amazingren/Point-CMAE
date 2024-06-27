@@ -29,6 +29,7 @@ model : {
   group_size: 32,
   num_group: 512,
   encoder_dims: 384,
+  type: full,
 }
 
 

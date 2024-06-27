@@ -374,7 +374,14 @@ class PointTransformer(nn.Module):
 
         self.norm = nn.LayerNorm(self.trans_dim)
 
-        self.cls_head_finetune = nn.Sequential(
+        self.type = config.type
+
+        if self.type == "linear":
+            self.cls_head_finetune = nn.Sequential(
+                nn.Linear(self.trans_dim * 2, self.cls_dim)
+            )
+        else:
+            self.cls_head_finetune = nn.Sequential(
                 nn.Linear(self.trans_dim * 2, 256),
                 nn.BatchNorm1d(256),
                 nn.ReLU(inplace=True),
@@ -385,6 +392,18 @@ class PointTransformer(nn.Module):
                 nn.Dropout(0.5),
                 nn.Linear(256, self.cls_dim)
             )
+
+        # self.cls_head_finetune = nn.Sequential(
+        #         nn.Linear(self.trans_dim * 2, 256),
+        #         nn.BatchNorm1d(256),
+        #         nn.ReLU(inplace=True),
+        #         nn.Dropout(0.5),
+        #         nn.Linear(256, 256),
+        #         nn.BatchNorm1d(256),
+        #         nn.ReLU(inplace=True),
+        #         nn.Dropout(0.5),
+        #         nn.Linear(256, self.cls_dim)
+        #     )
 
         self.build_loss_func()
 

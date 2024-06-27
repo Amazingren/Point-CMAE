@@ -29,8 +29,8 @@ model : {
   group_size: 32,
   num_group: 64,
   encoder_dims: 384,
+  type: full,
 }
-
 
 npoints: 1024
 total_bs : 32

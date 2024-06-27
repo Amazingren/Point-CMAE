@@ -13,11 +13,11 @@ scheduler: {
 }}
 
 dataset : {
-  train : { _base_: cfgs/dataset_configs/ScanObjectNN_hardest.yaml,
+  train : { _base_: cfgs/dataset_configs/ScanObjectNN_objectbg.yaml,
             others: {subset: 'train'}},
-  val : { _base_: cfgs/dataset_configs/ScanObjectNN_hardest.yaml,
+  val : { _base_: cfgs/dataset_configs/ScanObjectNN_objectbg.yaml,
             others: {subset: 'test'}},
-  test : { _base_: cfgs/dataset_configs/ScanObjectNN_hardest.yaml,
+  test : { _base_: cfgs/dataset_configs/ScanObjectNN_objectbg.yaml,
             others: {subset: 'test'}}}
 model : {
   NAME: PointTransformer,
@@ -29,7 +29,7 @@ model : {
   group_size: 32,
   num_group: 128,
   encoder_dims: 384,
-  type: full,
+  type: linear,
 }
 
 
