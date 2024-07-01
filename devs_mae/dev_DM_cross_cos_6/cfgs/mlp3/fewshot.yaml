@@ -1,7 +1,7 @@
 optimizer : {
   type: AdamW,
   kwargs: {
-  lr : 0.0005,
+  lr : 0.001,
   weight_decay : 0.05
 }}
 
@@ -30,7 +30,7 @@ model : {
   group_size: 32,
   num_group: 64,
   encoder_dims: 384,
-  type: mlp3,
+  type: mlp3
 }
 
 npoints: 1024
