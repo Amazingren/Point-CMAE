@@ -3,7 +3,7 @@
 
 The official PyTorch Implementation of Point-CMAE
 
-#### [Bin Ren <sup>1,2</sup>](https://amazingren.github.io/), [Guofeng Mei<sup>3</sup>](https://scholar.google.com/citations?user=VsmIGqsAAAAJ&hl=zh-CN), [Danda Pani Paudel<sup>4,5</sup>](https://people.ee.ethz.ch/~paudeld/), [Weijie Wang<sup>2,3</sup>](https://people.ee.ethz.ch/~paudeld/), [Yawei Li <sup>4</sup>](https://yaweili.bitbucket.io/), [Mengyuan Liu<sup>6</sup>](https://scholar.google.com/citations?user=woX_4AcAAAAJ&hl=zh-CN), [Rita Cucchiara<sup>7</sup>](https://scholar.google.com/citations?user=OM3sZEoAAAAJ&hl=en),[Luc Van Gool <sup>4,5</sup>](https://scholar.google.com/citations?user=TwMib_QAAAAJ&hl=en), and [Nicu Sebe <sup>2</sup>](https://scholar.google.com/citations?user=stFCYOAAAAAJ&hl=en) <br>
+[Bin Ren <sup>1,2</sup>](https://amazingren.github.io/), [Guofeng Mei<sup>3</sup>](https://scholar.google.com/citations?user=VsmIGqsAAAAJ&hl=zh-CN), [Danda Pani Paudel<sup>4,5</sup>](https://people.ee.ethz.ch/~paudeld/), [Weijie Wang<sup>2,3</sup>](https://people.ee.ethz.ch/~paudeld/), [Yawei Li <sup>4</sup>](https://yaweili.bitbucket.io/), [Mengyuan Liu<sup>6</sup>](https://scholar.google.com/citations?user=woX_4AcAAAAJ&hl=zh-CN), [Rita Cucchiara<sup>7</sup>](https://scholar.google.com/citations?user=OM3sZEoAAAAJ&hl=en),[Luc Van Gool <sup>4,5</sup>](https://scholar.google.com/citations?user=TwMib_QAAAAJ&hl=en), and [Nicu Sebe <sup>2</sup>](https://scholar.google.com/citations?user=stFCYOAAAAAJ&hl=en) <br>
 
 <sup>1</sup> University of Pisa, Italy, <br>
 <sup>2</sup> University of Trento, Italy, <br>
@@ -60,7 +60,6 @@ bash install.sh
 
 For **ModelNet40**, **ScanObjectNN**, and **ShapeNetPart** datasets, we use **ShapeNet** for the pre-training of MaskPoint models, and then finetune on these datasets respectively.
 
-For **ScanNetV2** object detection dataset, we use **ScanNet-Medium** for the pre-training.  Please refer to the paper Sec. 4 [Pretraining Datasets] for details.
 
 The details of used datasets can be found in [DATASET.md](./DATASET.md).
 
@@ -74,7 +73,7 @@ python main.py --config cfgs/pretrain_shapenet.yaml \
 ```
 
 ### Fine-tuning on downstream tasks
-We finetune our Point-CMAE on 5 downstream tasks: Classfication on ModelNet40, Few-shot learning on ModelNet40, Transfer learning on ScanObjectNN, Part segmentation on ShapeNetPart, and Object detection on ScanNetV2.
+We finetune our Point-CMAE on 5 downstream tasks: Classfication on ModelNet40, Few-shot learning on ModelNet40, Transfer learning on ScanObjectNN, Part segmentation on ShapeNetPart.
 
 #### ModelNet40
 To finetune a pre-trained Point-CMAE model on ModelNet40, simply run:
@@ -98,7 +97,6 @@ bash ./scripts/test.sh <GPU_IDS>\
 We follow the few-shot setting in the previous work.
 
 First, generate your own few-shot learning split or use the same split as us (see [DATASET.md](./DATASET.md)).
-```
 
 #### ScanObjectNN
 To finetune a pre-trained Point-CMAE model on ScanObjectNN, simply run:
@@ -131,7 +129,6 @@ article{ren2024bringing,
     journal={arXiv preprint arXiv:2407.05862},
     year={2024}
 }
-
 ```
 
 ## Acknowledgements
