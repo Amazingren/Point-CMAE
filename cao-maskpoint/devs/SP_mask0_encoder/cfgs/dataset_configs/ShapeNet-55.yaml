@@ -1,4 +1,0 @@
-NAME: ShapeNet
-DATA_PATH: /workspace/wwang/BINGO/datasets/point_cloud/ShapeNet55-34/ShapeNet-55
-N_POINTS: 8192
-PC_PATH: /workspace/wwang/BINGO/datasets/point_cloud/ShapeNet55-34/shapenet_pc

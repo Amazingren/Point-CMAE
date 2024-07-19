@@ -1,78 +1,56 @@
-# MaskPoint
-### Baseline Methods: [ECCV 2022] Masked Discrimination for Self-Supervised Learning on Point Clouds 
+# Point-CMAE
+### Baseline Methods: Bringing Masked Autoencoders Explicit Contrastive Properties for Point Cloud Self-Supervised Learning 
 
-This is a baseline code repo. for 3D representation learning.
-[Bin Ren](https://amazingren.github.io/), [Guofeng Mei](https://gfmei.github.io/), ...
+The official PyTorch Implementation of Point-CMAE
 
-Test Test
+#### [Bin Ren <sup>1,2</sup>](https://amazingren.github.io/), [Guofeng Mei<sup>3</sup>](https://scholar.google.com/citations?user=VsmIGqsAAAAJ&hl=zh-CN), [Danda Pani Paudel<sup>4,5</sup>](https://people.ee.ethz.ch/~paudeld/), [Weijie Wang<sup>2,3</sup>](https://people.ee.ethz.ch/~paudeld/), [Yawei Li <sup>4</sup>](https://yaweili.bitbucket.io/), [Mengyuan Liu<sup>6</sup>](https://scholar.google.com/citations?user=woX_4AcAAAAJ&hl=zh-CN), [Rita Cucchiara<sup>7</sup>](https://scholar.google.com/citations?user=OM3sZEoAAAAJ&hl=en),[Luc Van Gool <sup>4,5</sup>](https://scholar.google.com/citations?user=TwMib_QAAAAJ&hl=en), and [Nicu Sebe <sup>2</sup>](https://scholar.google.com/citations?user=stFCYOAAAAAJ&hl=en) <br>
 
-
-### Preliminary Documents: 
-- [Recording Slides](https://docs.google.com/presentation/d/1LHFJIDp88kTf5owCK34yF94Ds06GaEZYv3IDShSem1I/edit?usp=sharing)
-- [Preliminary Results](https://docs.google.com/spreadsheets/d/1sStvOSvblkMnCuITnskVC1LL006ploF1f_gpW3gP1S8/edit?usp=sharing)
-- [Overleaf]()
-
-
-### Novelty
-- [x] SelfPatch.... It seems it's the problem of the method itself.
-- [ ] Try to use Dino loss in this proble. 
-
-### Some Experiments Tips:
-- Environments: Use the PointMAE's envs for partsegmentation experiments, while for the rest, just the envs of MaskPoint.
-- Use data aumengation mentioned in [ACT](https://github.com/RunpeiDong/ACT) can largely improve the finetune results. But our onw results are still a bit lower than what we expected.
+<sup>1</sup> University of Pisa, Italy, <br>
+<sup>2</sup> University of Trento, Italy, <br>
+<sup>3</sup> Fondazione Bruno Kessler, Italy, <br>
+<sup>4</sup> ETH Zürich, Switzerland, <br>
+<sup>5</sup> INSAIT Sofia University, Bulgaria, <br>
+<sup>6</sup> Peking University, China, <br>
+<sup>7</sup> University of Modena and Reggio Emilia, Italy, <br>
 
 
-### Some Experimental findings:
-- If we use the normlization (for the student patch feature) for the recons_sp setting, the loss will be stop-decrease around 17.1, however, if we remove the the norm function, the loss will be stop-decrease around 7, at a slight cost of the unstable training.
-
-- If we use the liner function for the student patch feature, also the recons_sp setting, the loss will be stop-decrease around 8, but more stable
-
-- For the sponly setting, if we remove the normalization, we'd better not to set mask_ratio too high, the loss will becomes to 0 after just several epochs. It's not reasonable!!!也就是这里产生了提督消失的问题了我觉得
-
-- 那么对于上面reconstruction的时候，有没有可能也有了梯度消失的问题呢？
-- 感觉对于student的norm是一个很有意义或者说值得思考的地方，因为在sponly的实验中的结论是：如果不对p_patch_feats进行norm，那么梯度消失的出现是和mask_ratio无关的
+[![paper](https://img.shields.io/badge/arXiv-Paper-<COLOR>.svg)](https://arxiv.org/pdf/2407.05862)
 
 
+## Latest
+- `07/18/2024`: Repository is created. Our code will be made publicly available upon acceptance. 
 
-
-
-Please check out our paper [here](https://arxiv.org/abs/2203.11183).
 
 <div align="center">
-  <img src="figure/concept.png" width="640">
+  <img src="figure/framework.png" width="640">
 </div>
 
 
-## Pretrained Models
+## Method
+<br>
+<details>
+  <summary>
+  <font size="+1">Abstract</font>
+  </summary>
+    Contrastive learning (CL) for Vision Transformers (ViTs) in image domains has achieved performance comparable to CL for traditional convolutional backbones. However, in 3D point cloud pretraining with ViTs, masked autoencoder (MAE) modeling remains dominant. This raises the question: Can we take the best of both worlds? To answer this question, we first empirically validate that integrating MAE-based point cloud pre-training with the standard contrastive learning paradigm, even with meticulous design, can lead to a decrease in performance. To address this limitation, we reintroduce CL into the MAE-based point cloud pre-training paradigm by leveraging the inherent contrastive properties of MAE. Specifically, rather than relying on extensive data augmentation as commonly used in the image domain, we randomly mask the input tokens twice to generate contrastive input pairs.  Subsequently, a weight-sharing encoder and two identically structured decoders are utilized to perform masked token reconstruction. Additionally, we propose that for an input token masked by both masks simultaneously, the reconstructed features should be as similar as possible. This naturally establishes an explicit contrastive constraint within the generative MAE-based pre-training paradigm, resulting in our proposed method, Point-CMAE. Consequently, Point-CMAE effectively enhances the representation quality and transfer performance compared to its MAE counterpart. Experimental evaluations across various downstream applications, including classification, part segmentation, and few-shot learning, demonstrate the efficacy of our framework in surpassing state-of-the-art techniques under standard ViTs and single-modal settings. Our code will be released upon acceptance.
+</details>
 
-|  Task | Dataset | Config | Acc.| Download|
-|  ----- | ----- |-----|  -----| -----|
-|  Pre-training | ShapeNet |[pretrain_shapenet.yaml](./cfgs/pretrain_shapenet.yaml)| -- | {[w/o](https://static.hliu.cc/files/projects/maskpoint/checkpoints/pretrain_shapenet.pth),[w/](https://static.hliu.cc/files/projects/maskpoint/checkpoints/pretrain_shapenet_moco.pth)} MoCo |
-|  Classification | ScanObjectNN |[finetune_scanobject_hardest.yaml](./cfgs/finetune_scanobject_hardest.yaml)| 84.6%| [here](https://static.hliu.cc/files/projects/maskpoint/checkpoints/finetune_scanobject_hardest.pth)  |
-|  Classification | ScanObjectNN |[finetune_scanobject_objectbg.yaml](./cfgs/finetune_scanobject_objectbg.yaml)|89.3% | [here](https://static.hliu.cc/files/projects/maskpoint/checkpoints/finetune_scanobject_objectbg.pth) |
-|  Classification | ScanObjectNN |[finetune_scanobject_objectonly.yaml](./cfgs/finetune_scanobject_objectonly.yaml)| 89.7%| [here](https://static.hliu.cc/files/projects/maskpoint/checkpoints/finetune_scanobject_objectonly.pth) |
-|  Classification | ModelNet40 |[finetune_modelnet.yaml](./cfgs/finetune_modelnet.yaml)| 93.8%| [here](https://static.hliu.cc/files/projects/maskpoint/checkpoints/finetune_modelnet.pth) |
+
+## Pretrained Models
+TBD
 
 ### 3D Object Detection
-
-|  Task | Dataset | Config | AP25 | AP50 | Download|
-|  ----- | ----- |-----|  -----|  -----| -----|
-|  Pre-training | ScanNet-Medium |[pretrain_scannet_enc3x.yaml](./cfgs/pretrain_scannet_enc3x.yaml)| -- | -- | [here](https://static.hliu.cc/files/projects/maskpoint/checkpoints/pretrain_scannet_medium_enc3x.pth) |
-|  Pre-training | ScanNet-Medium |[pretrain_scannet_enc12x.yaml](./cfgs/pretrain_scannet_enc12x.yaml)| -- | -- | [here](https://static.hliu.cc/files/projects/maskpoint/checkpoints/pretrain_scannet_medium_enc12x.pth) |
-|  Detection | ScanNetV2 |[finetune_scannetv2_enc3x.sh](https://github.com/mu-cai/3detr_MaskPoint/blob/main/train_enc3x.sh)| 63.4 | 40.6 | [here](https://static.hliu.cc/files/projects/maskpoint/checkpoints/finetune_scannetv2_enc3x.pth) |
-|  Detection | ScanNetV2 |[finetune_scannetv2_enc12x.sh](https://github.com/mu-cai/3detr_MaskPoint/blob/main/train_enc12x.sh)| 64.2 | 42.1 | [here](https://static.hliu.cc/files/projects/maskpoint/checkpoints/finetune_scannetv2_enc12x.pth) |
-
+TBD
 
 ## Usage
+TBD
 
 ### Requirements
-
 - PyTorch >= 1.7.0
 - python >= 3.7
 - CUDA >= 9.0
 - GCC >= 4.9 
 - torchvision
-
 ```
 pip install -r requirements.txt
 bash install.sh
@@ -87,33 +65,19 @@ For **ScanNetV2** object detection dataset, we use **ScanNet-Medium** for the pr
 The details of used datasets can be found in [DATASET.md](./DATASET.md).
 
 
-### MaskPoint pre-training
-To pre-train the MaskPoint models on ShapeNet, simply run:
+### Point-CMAE pre-training
+To pre-train the Point-CMAE models on ShapeNet, simply run:
 ```
 python main.py --config cfgs/pretrain_shapenet.yaml \
     --exp_name pretrain_shapenet \
     [--val_freq 10]
 ```
-*val_freq* controls the frequence to evaluate the Transformer on ModelNet40 with LinearSVM.
-
-Similarly, to pre-train the MaskPoint models on ScanNet-Medium, simply run:
-```
-# Pretrain 3x encoder model
-python main.py --config cfgs/pretrain_scannet_enc3x.yaml \
-    --exp_name pretrain_scannet_enc3x \
-    [--val_freq 10]
-
-# Pretrain 12x encoder model
-python main.py --config cfgs/pretrain_scannet_enc12x.yaml \
-    --exp_name pretrain_scannet_enc12x \
-    [--val_freq 10]
-```
 
 ### Fine-tuning on downstream tasks
-We finetune our MaskPoint on 5 downstream tasks: Classfication on ModelNet40, Few-shot learning on ModelNet40, Transfer learning on ScanObjectNN, Part segmentation on ShapeNetPart, and Object detection on ScanNetV2.
+We finetune our Point-CMAE on 5 downstream tasks: Classfication on ModelNet40, Few-shot learning on ModelNet40, Transfer learning on ScanObjectNN, Part segmentation on ShapeNetPart, and Object detection on ScanNetV2.
 
 #### ModelNet40
-To finetune a pre-trained MaskPoint model on ModelNet40, simply run:
+To finetune a pre-trained Point-CMAE model on ModelNet40, simply run:
 ```
 python main.py
     --config cfgs/finetune_modelnet.yaml \
@@ -135,22 +99,9 @@ We follow the few-shot setting in the previous work.
 
 First, generate your own few-shot learning split or use the same split as us (see [DATASET.md](./DATASET.md)).
 ```
-# generate few-shot learning split
-cd datasets/
-python generate_few_shot_data.py
-# train and evaluate the MaskPoint
-python main.py \
-    --config cfgs/fewshot_modelnet.yaml \
-    --finetune_model \
-    --ckpts <path> \
-    --exp_name <name> \
-    --way <int> \
-    --shot <int> \
-    --fold <int>
-```
 
 #### ScanObjectNN
-To finetune a pre-trained MaskPoint model on ScanObjectNN, simply run:
+To finetune a pre-trained Point-CMAE model on ScanObjectNN, simply run:
 ```
 python main.py \
     --config cfgs/finetune_scanobject_hardest.yaml \
@@ -167,18 +118,22 @@ bash ./scripts/test_scan.sh <GPU_IDS>\
     --exp_name <name>
 ```
 
-#### ScanNetV2
-See [MaskPoint -- 3DETR Finetuning](https://github.com/mu-cai/3detr_MaskPoint) for detailed instructions.
-
 #### ShapeNetPart
-Coming soon..
+TBD
 
 ## Citation
+
+If you find our work helpful, please consider citing the following paper and/or ⭐ the repo.
 ```
-@article{liu2022masked,
-  title={Masked Discrimination for Self-Supervised Learning on Point Clouds},
-  author={Liu, Haotian and Cai, Mu and Lee, Yong Jae},
-  journal={Proceedings of the European Conference on Computer Vision (ECCV)},
-  year={2022}
+article{ren2024bringing,
+    title={Bringing Masked Autoencoders Explicit Contrastive Properties for Point Cloud Self-Supervised Learning},
+    author={Ren, Bin and Mei, Guofeng and Paudel, Danda Pani and Wang, Weijie and Li, Yawei and Liu, Mengyuan and Cucchiara, Rita and Van Gool, Luc and Sebe, Nicu},
+    journal={arXiv preprint arXiv:2407.05862},
+    year={2024}
 }
+
 ```
+
+## Acknowledgements
+
+This code is built on [Point-MAE](https://github.com/Pang-Yatian/Point-MAE).
