@@ -51,9 +51,29 @@ TBD
 - CUDA >= 9.0
 - GCC >= 4.9 
 - torchvision
+
 ```
+# Create the vi
+micromamba/conda create -n points python=3.8 -y
+
+pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
+
 pip install -r requirements.txt
+
+# Install pytorch3d from wheels
+pip install --no-index --no-cache-dir pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html
 bash install.sh
+
+or from source:
+pip install "git+https://github.com/facebookresearch/pytorch3d.git"
+
+
+# PointNet++
+pip install "git+https://github.com/erikwijmans/Pointnet2_PyTorch.git#egg=pointnet2_ops&subdirectory=pointnet2_ops_lib"
+# GPU kNN
+pip install --upgrade https://github.com/unlimblue/KNN_CUDA/releases/download/0.2/KNN_CUDA-0.2-py3-none-any.whl
+
+
 ```
 
 ### Dataset
