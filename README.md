@@ -18,7 +18,9 @@ The official PyTorch Implementation of Point-CMAE
 
 
 ## Latest
-- `07/18/2024`: Repository is created. Our code will be made publicly available upon acceptance. 
+- 📌 `09/24/2024`: We are organizing the codes, it will be released soon.
+- 🎉 `09/20/2024`: Our paper is accepted by 17th Asian Conference on Computer Vision (ACCV2024)!
+- 📌 `07/18/2024`: Repository is created. Our code will be made publicly available upon acceptance. 
 
 
 <div align="center">
@@ -53,14 +55,16 @@ TBD
 - torchvision
 
 ```
-# Create the vi
+# Create the virtual environment via micromamba or anaconda:
 micromamba/conda create -n points python=3.8 -y
 
+# Install PyTorch 1.11.0 + CUDA 11.3
 pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
 
+# Install Other libs
 pip install -r requirements.txt
 
-# Install pytorch3d from wheels
+# Install pytorch3d from wheels (We use the chamfer distance loss within pytorch3d)
 pip install --no-index --no-cache-dir pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html
 bash install.sh
 
@@ -68,11 +72,10 @@ or from source:
 pip install "git+https://github.com/facebookresearch/pytorch3d.git"
 
 
-# PointNet++
+# Install PointNet++
 pip install "git+https://github.com/erikwijmans/Pointnet2_PyTorch.git#egg=pointnet2_ops&subdirectory=pointnet2_ops_lib"
-# GPU kNN
+# Install GPU kNN
 pip install --upgrade https://github.com/unlimblue/KNN_CUDA/releases/download/0.2/KNN_CUDA-0.2-py3-none-any.whl
-
 
 ```
 
