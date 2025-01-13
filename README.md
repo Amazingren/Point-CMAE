@@ -18,7 +18,7 @@ The official PyTorch Implementation of Point-CMAE
 
 
 ## Latest
-- 📌 `09/24/2024`: We are organizing the codes, it will be released after CVPR submission.
+- 📌 `09/24/2024`: We are organizing the codes, it will be released after ICCV submission.
 - 🎉 `09/20/2024`: Our paper is accepted by 17th Asian Conference on Computer Vision (ACCV2024)!
 - 📌 `07/18/2024`: Repository is created. Our code will be made publicly available upon acceptance. 
 
@@ -146,11 +146,12 @@ TBD
 
 If you find our work helpful, please consider citing the following paper and/or ⭐ the repo.
 ```
-article{ren2024bringing,
-    title={Bringing Masked Autoencoders Explicit Contrastive Properties for Point Cloud Self-Supervised Learning},
-    author={Ren, Bin and Mei, Guofeng and Paudel, Danda Pani and Wang, Weijie and Li, Yawei and Liu, Mengyuan and Cucchiara, Rita and Van Gool, Luc and Sebe, Nicu},
-    journal={arXiv preprint arXiv:2407.05862},
-    year={2024}
+@inproceedings{ren2024bringing,
+  title={Bringing masked autoencoders explicit contrastive properties for point cloud self-supervised learning},
+  author={Ren, Bin and Mei, Guofeng and Paudel, Danda Pani and Wang, Weijie and Li, Yawei and Liu, Mengyuan and Cucchiara, Rita and Van Gool, Luc and Sebe, Nicu},
+  booktitle={Proceedings of the Asian Conference on Computer Vision},
+  pages={2034--2052},
+  year={2024}
 }
 ```
 
