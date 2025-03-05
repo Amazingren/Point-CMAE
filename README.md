@@ -56,7 +56,7 @@ TBD
 
 ```
 # Create the virtual environment via micromamba or anaconda:
-micromamba/conda create -n points python=3.8 -y
+micromamba create -n points python=3.8 -y
 
 # Install PyTorch 1.11.0 + CUDA 11.3
 pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
@@ -66,7 +66,6 @@ pip install -r requirements.txt
 
 # Install pytorch3d from wheels (We use the chamfer distance loss within pytorch3d)
 pip install --no-index --no-cache-dir pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html
-bash install.sh
 
 or from source:
 pip install "git+https://github.com/facebookresearch/pytorch3d.git"
