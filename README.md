@@ -56,10 +56,17 @@ TBD
 
 ```
 # Create the virtual environment via micromamba or anaconda:
-micromamba create -n points python=3.8 -y
+micromamba create -n point python=3.10 -y
 
-# Install PyTorch 1.11.0 + CUDA 11.3
-pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
+# cuda
+export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.8.0/lib64:$LD_LIBRARY_PATH
+export PATH=/opt/modules/nvidia-cuda-11.8.0/bin:$PATH
+
+# gcc
+export PATH=/opt/modules/gcc-9.5.0/bin:$PATH
+
+# Install PyTorch 2.0.1 + CUDA 11.8
+pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 -f https://download.pytorch.org/whl/torch_stable.html
 
 # Install Other libs
 pip install -r requirements.txt
@@ -67,10 +74,13 @@ pip install -r requirements.txt
 # Install pytorch3d from wheels (We use the chamfer distance loss within pytorch3d)
 pip install --no-index --no-cache-dir pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html
 
-or from source:
-pip install "git+https://github.com/facebookresearch/pytorch3d.git"
 
+# Chamfer Distance:
 
+```
+cd ./extensions/chamfer_dist
+python setup.py install --user
+```
 # Install PointNet++
 pip install "git+https://github.com/erikwijmans/Pointnet2_PyTorch.git#egg=pointnet2_ops&subdirectory=pointnet2_ops_lib"
 # Install GPU kNN

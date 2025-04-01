@@ -1,0 +1,4 @@
+NAME: ShapeNet
+DATA_PATH: /path_to_your/ShapeNet55-34/ShapeNet-55_MAE
+N_POINTS: 8192
+PC_PATH: /path_to_your/ShapeNet55-34/shapenet_pc
