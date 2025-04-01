@@ -1,5 +1,5 @@
 # Point-CMAE
-### Baseline Methods: Bringing Masked Autoencoders Explicit Contrastive Properties for Point Cloud Self-Supervised Learning 
+### Bringing Masked Autoencoders Explicit Contrastive Properties for Point Cloud Self-Supervised Learning 
 
 The official PyTorch Implementation of Point-CMAE
 
@@ -18,7 +18,7 @@ The official PyTorch Implementation of Point-CMAE
 
 
 ## Latest
-- 📌 `09/24/2024`: We are organizing the codes, it will be released after ICCV submission.
+- 📌 `04/01/2025`: Our code is released. (The pretrained weight will be released soon)
 - 🎉 `09/20/2024`: Our paper is accepted by 17th Asian Conference on Computer Vision (ACCV2024)!
 - 📌 `07/18/2024`: Repository is created. Our code will be made publicly available upon acceptance. 
 
