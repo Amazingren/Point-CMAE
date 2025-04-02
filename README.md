@@ -38,42 +38,36 @@ The official PyTorch Implementation of Point-CMAE
 </details>
 
 
-## Pretrained Models
-TBD
 
-### 3D Object Detection
-TBD
-
-## Usage
-TBD
-
-### Requirements
+## Prepration
+### Basic Requirements
 - PyTorch >= 1.7.0
 - python >= 3.7
 - CUDA >= 9.0
 - GCC >= 4.9 
 - torchvision
 
+### Environments
 ```
-# Create the virtual environment via micromamba or anaconda:
+
+# Step1: Create the virtual environment via micromamba or anaconda:
 micromamba create -n point python=3.10 -y
 
-# cuda
+# Step2 (Optional): Ensure your cuda
 export LD_LIBRARY_PATH=/opt/modules/nvidia-cuda-11.8.0/lib64:$LD_LIBRARY_PATH
 export PATH=/opt/modules/nvidia-cuda-11.8.0/bin:$PATH
 
-# gcc
+# Step3 (Optional): Ensure your gcc
 export PATH=/opt/modules/gcc-9.5.0/bin:$PATH
 
-# Install PyTorch 2.0.1 + CUDA 11.8
+# Step4: Install PyTorch 2.0.1 + CUDA 11.8
 pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 -f https://download.pytorch.org/whl/torch_stable.html
 
-# Install Other libs
+# Step5: Install Other libs
 pip install -r requirements.txt
 
-# Install pytorch3d from wheels (We use the chamfer distance loss within pytorch3d)
+# Step6 (Optinoal): Install pytorch3d from wheels, If you would like to use the chamfer distance loss within pytorch3d, however, we found that they are slightly discrepancy from the results compared to the compied version)
 pip install --no-index --no-cache-dir pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu113_pyt1110/download.html
-
 
 # Chamfer Distance:
 
@@ -94,6 +88,15 @@ For **ModelNet40**, **ScanObjectNN**, and **ShapeNetPart** datasets, we use **Sh
 
 
 The details of used datasets can be found in [DATASET.md](./DATASET.md).
+
+## Pretrained Models
+TBD
+
+### 3D Object Detection
+TBD
+
+
+## Usage
 
 
 ### Point-CMAE pre-training
